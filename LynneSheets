@@ -1,0 +1,41 @@
+import re
+import pandas as pd
+
+LynneFile = pd.read_excel(r"C:\Users\16203\Desktop\ArterialSamplingFiles\NHP_timings_ASEM_AZAN.xlsx")
+read = LynneFile
+file = (LynneFile.to_string())
+read.set_index(read.index)
+df = pd.DataFrame(read, columns=['Sample', 'Timepoint', 'Clock Time start', 'Clock Time stop', 'Whole Blood', 'Plasma',
+                                 'Notes'])
+
+if re.search(r'\d{2}-\d{2}-\d{4}|\d{2}/\d{2}/\d{4}|\d{4}-\d{2}-\d{2}|\d{4}/\d{2}/\d{2}.*?', file):  # date
+    date = (re.search(r'\d{2}-\d{2}-\d{4}|\d{2}/\d{2}/\d{4}|\d{4}-\d{2}-\d{2}|\d{4}/\d{2}/\d{2}.*?', file))
+    if date != None:
+        print("Date: ", date[0])
+
+if re.search(r"11C|18F|C11|F18.*?", file):
+    tracer = (re.search(r"11C|18F|C11|F18.*?", file))
+    if tracer != None:
+        print("Tracer: ", tracer[0])
+
+# need change to accomodate other/human names
+if re.search(r"Ring|Ollie.*?", file):  # subject ID
+    subjectID = (re.search(r"Ring|Ollie", file))
+    if subjectID != None:
+        print("Subject ID: ", subjectID[0])
+
+if re.findall(r'\d{2}\.\d{2}|\d{1}\.\d{2}|\d{2}\.\d{1}|\d{1}\.\d{1}.*?', file):  # Dose
+    values = re.findall(r'\d{2}\.\d{2}|\d{1}\.\d{2}|\d{2}\.\d{1}|\d{1}\.\d{1}', file)
+
+if re.search(r'\d{2}\.\d{2}|\d{1}\.\d{2}|\d{2}\.\d{1}|\d{1}\.\d{1}.*?', file):  # SubjectWt
+    subjectwt = (re.search(r'\d{2}\.\d{2}|\d{1}\.\d{2}|\d{2}\.\d{1}|\d{1}\.\d{1}.*?', file))
+    if subjectwt != None:
+        print("Subject Wt: ", subjectwt[0], "kg")
+
+if re.findall(r'(\d{2}:\d{2}:\d{2})|(\d{1}:\d{2}:\d{2}).*?', file):
+    injtimes = (re.findall(r'(\d{2}:\d{2}:\d{2})|(\d{1}:\d{2}:\d{2}).*?', file))
+
+dict = {"Date: ": date[0],"Tracer: ": tracer[0], "Subject ID: ": subjectID[0],'Subject wt (kg)': values[0], 'Dose (mCi)': values[1], 'Volume Injected (mL)': values[2], "Start Inj: ": injtimes[1],"End Inj: ": injtimes[2]}
+print (dict)
+csv = pd.DataFrame(dict)
+csv.to_csv('test.csv')
