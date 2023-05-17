@@ -1,0 +1,31 @@
+halflife = 109.771 #same for all
+
+# plasma
+# fix metab2 1.5 not 2
+RTmetab1 = 1.04
+RTmetab2 = 7.19
+RTtracer = 9.01
+
+areaMetab1 = 1.234
+areaMetab2 = .613
+areaTracer = 50.143
+
+lostASEM = .030258 #E2
+
+def flowcorrectionfxn(halflife, RTmetab1, RTmetab2, RTtracer, areaMetab1, areaMetab2, areaTracer):
+    flow_metab1 = areaMetab1 * 1.5 * 2 ** (RTmetab1 / halflife)
+    flow_metab2 = areaMetab2 * 2 * 2 ** (RTmetab2 / halflife)
+    flow_tracer = areaTracer * 1.5 * 2 ** (RTtracer / halflife)
+
+    correction = flow_tracer / (flow_metab1 + flow_metab2 + flow_tracer)
+    return correction
+
+def columnA(flow_metab1, flow_metab2, flow_tracer, lostASEM):
+    #correct for losses
+    flowloss1 = flow_metab1 - (flow_tracer*lostASEM)
+    flowloss2 = flow_metab2
+    flowlosstracer = flow_tracer+(flow_tracer*lostASEM)
+
+    #intact ASEM over time
+    correctedintact = flowlosstracer / (flowloss2+flowloss1+flowlosstracer)
+    return correctedintact 
