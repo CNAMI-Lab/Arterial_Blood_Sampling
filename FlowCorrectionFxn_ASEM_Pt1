@@ -14,17 +14,18 @@ class FlowCorrection:
         self.areaTracer = areaTracer
         self.lostASEM = 0.030258
 
+    
     def flow_correction(self):
-        flow_metab1 = self.areaMetab1 * 1.5 * 2 ** (self.RTmetab1 / self.halflife)
-        flow_metab2 = self.areaMetab2 * 2 * 2 ** (self.RTmetab2 / self.halflife)
+        flow_metab1 = self.areaMetab1 * 2 * 2 ** (self.RTmetab1 / self.halflife)
+        flow_metab2 = self.areaMetab2 * 1.5 * 2 ** (self.RTmetab2 / self.halflife)
         flow_tracer = self.areaTracer * 1.5 * 2 ** (self.RTtracer / self.halflife)
 
         correction = flow_tracer / (flow_metab1 + flow_metab2 + flow_tracer)
         return correction
 
     def columnA(self):
-        flow_metab1 = self.areaMetab1 * 1.5 * 2 ** (self.RTmetab1 / self.halflife)
-        flow_metab2 = self.areaMetab2 * 2 * 2 ** (self.RTmetab2 / self.halflife)
+        flow_metab1 = self.areaMetab1 * 2 * 2 ** (self.RTmetab1 / self.halflife)
+        flow_metab2 = self.areaMetab2 * 1.5 * 2 ** (self.RTmetab2 / self.halflife)
         flow_tracer = self.areaTracer * 1.5 * 2 ** (self.RTtracer / self.halflife)
 
         # Correct for losses
@@ -35,6 +36,7 @@ class FlowCorrection:
         # Intact ASEM over time
         correctedintact = flowlosstracer / (flowloss2 + flowloss1 + flowlosstracer)
         return correctedintact
+
 
 
 # Usage (plasma from excel HPLC interpretation)
