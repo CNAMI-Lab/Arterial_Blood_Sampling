@@ -1,0 +1,67 @@
+#unit test for flowcorrectionfxn
+import unittest
+from flowcorrectionRO948 import FlowCorrection
+
+class FlowCorrectionTestCase(unittest.TestCase):
+    def setUp(self):
+        self.flow_correction_instance = FlowCorrection()
+
+    def test_flowcorrectionfxn(self):
+        self.flow_correction_instance.flowcorrectionfxn()
+
+        # Expected output
+        expected_correction_factor = 0.918759755
+
+        # Compare the actual and expected results
+        self.assertAlmostEqual(self.flow_correction_instance.correction_factor, expected_correction_factor, places=6)
+
+
+if __name__ == '__main__':
+    unittest.main()
+    
+#The error: AssertionError: 1.0 != 0.918759755 within 6 places (0.08124024500000004 difference)
+
+#unit test for flowanddecayfxn
+import unittest
+from flowcorrectionRO948 import FlowCorrection
+
+class FlowCorrectionTestCase(unittest.TestCase):
+    def setUp(self):
+        self.flow_correction_instance = FlowCorrection()
+
+    def test_flowanddecayfxn(self):
+        RTmetab1 = [0.66, 0, 0.84, 0.98, 0.97, 1.13]
+        RTmetab2 = [7.91, 0, 7.74, 7.75, 7.72, 7.70]
+        RTtracer = [9.73, 0, 9.68, 9.63, 9.64, 9.65]
+        areaMetab1 = [14.787, 1, 19.551, 18.618, 16.579, 15.194]
+        areaMetab2 = [8.587, 1, 52.379, 51.834, 48.601, 41.683]
+        areaTracer = [103.019, 1, 27.667, 18.653, 8.946, 4.434]
+
+        self.flow_correction_instance.correction_factor = 0.918759755
+
+        # Expected output
+        expected_correction = [0.032484095, 0.0, 0.077402656, 0.067230263, 0.061783328, 0.056464442]
+
+        # Call the function
+        actual_correction = self.flow_correction_instance.flowanddecayfxn(RTmetab1, RTmetab2, RTtracer, areaMetab1,
+                                                                          areaMetab2, areaTracer)
+
+        # Compare the actual and expected results
+        self.assertEqual(actual_correction, expected_correction)
+
+
+if __name__ == '__main__':
+    unittest.main()
+#The error: AssertionError: Lists differ: [0.7849248680593883, 0.34670179433962267, 0.[74 chars]4953] != [0.032484095, 0.0, 0.077402656, 0.067230263,[21 chars]4442]
+
+First differing element 0:
+0.7849248680593883
+0.032484095
+
++ [0.032484095, 0.0, 0.077402656, 0.067230263, 0.061783328, 0.056464442]
+- [0.7849248680593883,
+-  0.34670179433962267,
+-  0.2780302273158678,
+-  0.2107074696594238,
+-  0.12237623342585417,
+-  0.07411495230694953]
