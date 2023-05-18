@@ -1,11 +1,9 @@
-#Unit test for flowcorrectionfxn:
+#Unit test for flow_correction:
 import unittest
-from flowcorrectionRO948 import flowcorrectionfxn
-
+from flowcorrectionASEM import FlowCorrection
 
 class MyTestfirstfxn (unittest.TestCase):
-    def test_flowcorrectionfxn(self):
-        # Expected output
+    def test_flow_correction(self):
         expected_correction = 0.958508395
         halflife = 109.771
         RTmetab1 = 1.04
@@ -15,41 +13,48 @@ class MyTestfirstfxn (unittest.TestCase):
         areaMetab1 = 1.234
         areaMetab2 = .613
         areaTracer = 50.143
+        
         # Call the function
-        actual_correction = flowcorrectionfxn(halflife, RTmetab1, RTmetab2, RTtracer, areaMetab1, areaMetab2, areaTracer)
+        flow_correction_instance = FlowCorrection(halflife, RTmetab1, RTmetab2, RTtracer, areaMetab1, areaMetab2, areaTracer)
+        actual_correction = flow_correction_instance.flow_correction()
 
-        # Compare the actual and expected results
         self.assertEqual(actual_correction, expected_correction)
 
 if __name__ == '__main__':
     unittest.main()
 
-#The error: AssertionError: 0.9619865754653268 != 0.958508395 
+#The error:AssertionError: 0.9619865754653268 != 0.958508395 
 
 #The unit test for columnA:
 import unittest
-from flowcorrectionRO948 import columnA
+from flowcorrectionASEM import FlowCorrection
 
 class MyTestCase(unittest.TestCase):
     def test_columnA(self):
+
         # plasma test
+        halflife = 109.771
+        RTmetab1 = 1.04
+        RTmetab2 = 7.19
+        RTtracer = 9.01
+        areaMetab1 = 1.234
+        areaMetab2 = 0.613
+        areaTracer = 50.143
+        lostASEM = 0.030258  # E2
 
-        flow_metab1 = 2.484260846
-        flow_metab2 = 0.962208517
-        flow_tracer = 79.61778749
-        lostASEM = .030258  # E2
-
-        # Expected output
         expected_correctedintact = 0.987138062
 
-        # Call the function
-        actual_correctedintact = columnA(flow_metab1, flow_metab2, flow_tracer, lostASEM)
+        #instance of the FlowCorrection class
+        flow_correction_instance = FlowCorrection(halflife, RTmetab1, RTmetab2, RTtracer, areaMetab1, areaMetab2,
+                                                  areaTracer)
 
-        # Compare the actual and expected results
+        #call the columnA method on the instance
+        actual_correctedintact = flow_correction_instance.columnA()
+
         self.assertEqual(actual_correctedintact, expected_correctedintact)
-
 
 if __name__ == '__main__':
     unittest.main()
 
-#the error: AssertionError: 0.9875109416681658 != 0.987138062
+#the error: AssertionError: 0.9910943652657569 != 0.987138062
+
