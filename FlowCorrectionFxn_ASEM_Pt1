@@ -1,0 +1,54 @@
+# retention time (Metab1, metab2, tracer)
+# area (Metab1, metab2, tracer)
+# metab1
+# metab2
+# tracer (18FASEM)
+class FlowCorrection:
+    def __init__(self, halflife, RTmetab1, RTmetab2, RTtracer, areaMetab1, areaMetab2, areaTracer):
+        self.halflife = halflife
+        self.RTmetab1 = RTmetab1
+        self.RTmetab2 = RTmetab2
+        self.RTtracer = RTtracer
+        self.areaMetab1 = areaMetab1
+        self.areaMetab2 = areaMetab2
+        self.areaTracer = areaTracer
+        self.lostASEM = 0.030258
+
+    def flow_correction(self):
+        flow_metab1 = self.areaMetab1 * 1.5 * 2 ** (self.RTmetab1 / self.halflife)
+        flow_metab2 = self.areaMetab2 * 2 * 2 ** (self.RTmetab2 / self.halflife)
+        flow_tracer = self.areaTracer * 1.5 * 2 ** (self.RTtracer / self.halflife)
+
+        correction = flow_tracer / (flow_metab1 + flow_metab2 + flow_tracer)
+        return correction
+
+    def columnA(self):
+        flow_metab1 = self.areaMetab1 * 1.5 * 2 ** (self.RTmetab1 / self.halflife)
+        flow_metab2 = self.areaMetab2 * 2 * 2 ** (self.RTmetab2 / self.halflife)
+        flow_tracer = self.areaTracer * 1.5 * 2 ** (self.RTtracer / self.halflife)
+
+        # Correct for losses
+        flowloss1 = flow_metab1 - (flow_tracer * self.lostASEM)
+        flowloss2 = flow_metab2
+        flowlosstracer = flow_tracer + (flow_tracer * self.lostASEM)
+
+        # Intact ASEM over time
+        correctedintact = flowlosstracer / (flowloss2 + flowloss1 + flowlosstracer)
+        return correctedintact
+
+
+# Usage (plasma from excel HPLC interpretation)
+halflife = 109.771
+RTmetab1 = 1.04
+RTmetab2 = 7.19
+RTtracer = 9.01
+areaMetab1 = 1.234
+areaMetab2 = 0.613
+areaTracer = 50.143
+
+flow_correction_instance = FlowCorrection(halflife, RTmetab1, RTmetab2, RTtracer, areaMetab1, areaMetab2, areaTracer)
+correction = flow_correction_instance.flow_correction()
+corrected_intact = flow_correction_instance.columnA()
+
+print("Correction:", correction)
+print("Corrected Intact ASEM:", corrected_intact)
