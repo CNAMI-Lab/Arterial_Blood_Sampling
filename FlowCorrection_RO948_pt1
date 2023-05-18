@@ -1,0 +1,64 @@
+# plasa (20230330 invitro)
+class FlowCorrection:
+    def __init__(self):
+        self.RTmetab1_pl = 1.12
+        self.RTmetab2_pl = 7.39
+        self.RTtracer_pl = 9.63
+
+        self.areaMetab1_pl = 1.966
+        self.areaMetab2_pl = 0.937
+        self.areaTracer_pl = 487.906
+
+        self.RTmetab1_do = 1.12
+        self.RTmetab2_do = 7.39
+        self.RTtracer_do = 9.63
+
+        self.areaMetab1_do = 1.966
+        self.areaMetab2_do = 0.937
+        self.areaTracer_do = 487.906
+
+        self.halflife = 6586.27 / 60
+        self.correction_factor = 0
+
+    def flowcorrectionfxn(self):
+        flow_metab1_pl = self.areaMetab1_pl * 1.3 * 2 ** (self.RTmetab1_pl / self.halflife)
+        flow_metab2_pl = self.areaMetab2_pl * 2 * 2 ** (self.RTmetab2_pl / self.halflife)
+        flow_tracer_pl = self.areaTracer_pl * 2 * 2 ** (self.RTtracer_pl / self.halflife)
+
+        correction_pl = flow_tracer_pl / (flow_metab1_pl + flow_metab2_pl + flow_tracer_pl)
+
+        flow_metab1_do = self.areaMetab1_do * 1.3 * 2 ** (self.RTmetab1_do / self.halflife)
+        flow_metab2_do = self.areaMetab2_do * 2 * 2 ** (self.RTmetab2_do / self.halflife)
+        flow_tracer_do = self.areaTracer_do * 2 * 2 ** (self.RTtracer_do / self.halflife)
+
+        correction_do = flow_tracer_do / (flow_metab1_do + flow_metab2_do + flow_tracer_do)
+
+        self.correction_factor = correction_do / correction_pl
+        print(float(self.correction_factor))
+
+    def flowanddecayfxn(self, RTmetab1, RTmetab2, RTtracer, areaMetab1, areaMetab2, areaTracer):
+        correction = []
+        for i in range(len(RTmetab1)):
+            flow_metab1 = areaMetab1[i] * 1.3 * 2 ** (RTmetab1[i] / self.halflife)
+            flow_metab2 = areaMetab2[i] * 2 * 2 ** (RTmetab2[i] / self.halflife)
+            flow_tracer = areaTracer[i] * 2 * 2 ** (RTtracer[i] / self.halflife)
+
+            corrected = flow_tracer / (flow_metab1 + flow_metab2 + flow_tracer) * self.correction_factor
+            correction.append(corrected)
+
+        return correction
+
+
+# Usage:
+flow_correction_instance = FlowCorrection()
+flow_correction_instance.flowcorrectionfxn()
+
+RTmetab1 = [0.66, 0, 0.84, 0.98, 0.97, 1.13]
+RTmetab2 = [7.91, 0, 7.74, 7.75, 7.72, 7.70]
+RTtracer = [9.73, 0, 9.68, 9.63, 9.64, 9.65]
+areaMetab1 = [14.787, 1, 19.551, 18.618, 16.579, 15.194]
+areaMetab2 = [8.587, 1, 52.379, 51.834, 48.601, 41.683]
+areaTracer = [103.019, 1, 27.667, 18.653, 8.946, 4.434]
+
+correction = flow_correction_instance.flowanddecayfxn(RTmetab1, RTmetab2, RTtracer, areaMetab1, areaMetab2, areaTracer)
+print(correction)
