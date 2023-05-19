@@ -9,17 +9,21 @@ from tkinter.filedialog import askopenfilename
 from tkinter import messagebox
 
 class scan:
-        def __init__(self):
-            messagebox.showinfo("Information","Select Counter Sheet")
-            self.df_curve = pd.read_excel(askopenfilename())
-            messagebox.showinfo("Information","Select Timing Sheet")
-            self.df_timing = pd.read_excel(askopenfilename())
-            self.date = datetime.fromisoformat(input("Enter Date of Scan (YYYY-MM-DD):"))
-            self.tracer = str(input("Enter Radiotracer (F-18):"))
-            if "F-18" in self.tracer:
-               self.tracer_hl = 109.771
-            elif "C-11" in self.tracer:
-               self.tracer_hl = 20.38
+    pass
+
+def collectData():
+    scan1 = scan()
+    messagebox.showinfo("Information","Select Counter Sheet")
+    scan1.df_curve = pd.read_excel(askopenfilename())
+    messagebox.showinfo("Information","Select Timing Sheet")
+    scan1.df_timing = pd.read_excel(askopenfilename())
+    scan1.date = datetime.fromisoformat(input("Enter Date of Scan (YYYY-MM-DD):"))
+    scan1.tracer = str(input("Enter Radiotracer (F-18):"))
+    if "F-18" in scan1.tracer:
+        scan1.tracer_hl = 109.771
+    elif "C-11" in scan1.tracer:
+        scan1.tracer_hl = 20.38
+    return scan
 
 
 def dataClean(scan):
@@ -51,19 +55,19 @@ def dataClean(scan):
         blood_col = [match for match in blood_col if "GC" in match]
     if(len(plasma_col)>1):
         plasma_col = [match for match in plasma_col if "GC" in match]
-    start_col = [col for col in dataframe_timepoint.columns if isinstance(col, str) and (r'Draw Time start') in col]
-    finish_col = [col for col in dataframe_timepoint.columns if isinstance(col, str) and (r'Draw Time finish') in col]
+    start_col = [col for col in dataframe_timepoint.columns if isinstance(col, str) and (r'start') in col]
+    finish_col = [col for col in dataframe_timepoint.columns if isinstance(col, str) and (r'finish') in col]
     dataframe_curve['BARCODE  '] = ""
     dataframe_curve['Draw Start'] = ""
     dataframe_curve['Draw Finish'] = ""
     for i in range(dataframe_timepoint.shape[0]):
-        dataframe_curve['BARCODE  '][int(np.where(dataframe_curve["POS"]==int(dataframe_timepoint[blood_col].iloc[i]))[0])+1] = "WB " + f"{i+1:02}" 
-        dataframe_curve['BARCODE  '][int(np.where(dataframe_curve["POS"]==int(dataframe_timepoint[plasma_col].iloc[i]))[0])+1] = "PL " + f"{i+1:02}" 
+        dataframe_curve['BARCODE  '][int(np.where(dataframe_curve["POS"].astype('float32')==int(dataframe_timepoint[blood_col].iloc[i]))[0])+1] = "WB " + f"{i+1:02}" 
+        dataframe_curve['BARCODE  '][int(np.where(dataframe_curve["POS"].astype('float32')==int(last_numbers(dataframe_timepoint[plasma_col].iloc[i][-1])))[0])+1] = "PL " + f"{i+1:02}" 
         
-        dataframe_curve['Draw Start'][int(np.where(dataframe_curve["POS"]==int(dataframe_timepoint[plasma_col].iloc[i]))[0])+1] =  dataframe_timepoint[start_col].iloc[i]
-        dataframe_curve['Draw Finish'][int(np.where(dataframe_curve["POS"]==int(dataframe_timepoint[plasma_col].iloc[i]))[0])+1] = dataframe_timepoint[finish_col].iloc[i]
-        dataframe_curve['Draw Start'][int(np.where(dataframe_curve["POS"]==int(dataframe_timepoint[blood_col].iloc[i]))[0])+1] =  dataframe_timepoint[start_col].iloc[i]
-        dataframe_curve['Draw Finish'][int(np.where(dataframe_curve["POS"]==int(dataframe_timepoint[blood_col].iloc[i]))[0])+1] = dataframe_timepoint[finish_col].iloc[i]
+        dataframe_curve['Draw Start'][int(np.where(dataframe_curve["POS"].astype('float32')==int(last_numbers(dataframe_timepoint[plasma_col].iloc[i][-1])))[0])+1] =  dataframe_timepoint[start_col].iloc[i]
+        dataframe_curve['Draw Finish'][int(np.where(dataframe_curve["POS"].astype('float32')==int(last_numbers(dataframe_timepoint[plasma_col].iloc[i][-1])))[0])+1] = dataframe_timepoint[finish_col].iloc[i]
+        dataframe_curve['Draw Start'][int(np.where(dataframe_curve["POS"].astype('float32')==int(dataframe_timepoint[blood_col].iloc[i]))[0])+1] =  dataframe_timepoint[start_col].iloc[i]
+        dataframe_curve['Draw Finish'][int(np.where(dataframe_curve["POS"].astype('float32')==int(dataframe_timepoint[blood_col].iloc[i]))[0])+1] = dataframe_timepoint[finish_col].iloc[i]
         #not sure if +1 works all the time
 
     #Remove Rct's if necessary
@@ -189,7 +193,7 @@ def calculateMuCi(scan):
             muci_calculator = (int(scan.Gamma_Counter_Sheet[i,2] )+ int(scan.Gamma_Counter_Sheet[i+1,2] ) - scan.bkg_value)*(2**((scan.duration_in_minutes+float(scan.Gamma_Counter_Sheet[i,4]))/scan.tracer_hl))
             muci = muci_calculator/scan.avg_act_per_act_left
             if 'PL' in scan.Gamma_Counter_Sheet[i,5]:
-                muci = muci/0.4
+                muci = muci/0.4   #add check to make sure 1ml and .4ml are standard in timing sheet columns E and G
             kBq = muci * 37
             kBq_Sheet.append(kBq)
             if(isinstance(scan.Gamma_Counter_Sheet[i,6], pd.Series)):
@@ -214,13 +218,119 @@ def calculateMuCi(scan):
 def outputData(scan):
     pd.DataFrame(scan.final_calculation).to_csv(str(str(scan.date)[:10]+'_Final Calculation.csv'), index = False)
 
-scan1 = scan() 
-scan1 = dataClean(scan1)
-scan1 = collectTimes(scan1)
-scan1 = determineDuration(scan1)
-scan1 = calculateBackground(scan1)
-scan1 = calculateAvgActLeft(scan1)
-scan1 = calculateMuCi(scan1)
-outputData(scan1)
+def last_numbers(s):
+    return int(s.split(',')[-1].strip()) if isinstance(s, str) else s
+
+def read_metabolites(hplc_dir,dataframes):
+    for filename in os.listdir(hplc_dir):
+        if filename.endswith(".xls"):
+            file_path = os.path.join(hplc_dir, filename)
+            df = pd.read_excel(file_path)
+            dataframes.append(df)
+    return dataframes
+
+def extractMetaboliteData(dataframes):
+    # create an empty dataframe to store the extracted data
+    final_df = pd.DataFrame(columns=["Name", "RT 1", "Area 1", "RT 2", "Area 2", "RT 3", "Area 3"])
+
+    # loop through the dataframes and extract the required data
+    for df in dataframes:
+        # extract name, area, and RT data
+        name = df.iloc[1, 2].split()[-2:]
+        name = ' '.join(name)
+        RT_1 = df.iloc[9, 1]
+        area_1 = df.iloc[9, 4]
+        RT_2 = df.iloc[10, 1]
+        area_2 = df.iloc[10, 4]
+        RT_3 = df.iloc[11, 1]
+        area_3 = df.iloc[11, 4]
+        
+        # create a new dataframe with the extracted data
+        new_df = pd.DataFrame({"Name": [name], "RT 1": [RT_1], "Area 1": [area_1],
+                            "RT 2": [RT_2], "Area 2": [area_2], "RT 3": [RT_3], "Area 3": [area_3]})
 
 
+        # check if name ends with "re"
+        if name.endswith("re"):
+            # update the rows with the matching name
+            name = df.iloc[1, 2].split()[-3:-1]
+            name = ' '.join(name)
+            final_df.loc[final_df['Name'] == name, ['RT 1', 'Area 1', 'RT 2', 'Area 2', 'RT 3', 'Area 3']] = [RT_1, area_1, RT_2, area_2, RT_3, area_3]
+        elif name.endswith("Blank"):
+            pass
+        else:
+            # append the new dataframe to the final dataframe
+            final_df = pd.concat([final_df, new_df], ignore_index=True)
+
+    return final_df
+
+def correctMetabolites(hdf,tracer_hl,tracer_name):
+    Flow1 = 2
+    Flow2 = 2
+    if tracer_name == "ASEM":
+        Flow2 = 1.5
+    elif tracer_name == "RO948":
+        Flow2 = 1.3
+    in_vitro_column = hdf["Name"].str.contains("in vitro")
+    dose_column = hdf["Name"].str.contains("dose")
+    hdf.replace('n.a.', np.nan, inplace=True)
+    hdf["Flow 1"] = hdf["Area 1"]*Flow1*2**(hdf["RT 1"]/tracer_hl)
+    hdf["Flow 2"] = hdf["Area 2"]*Flow2*2**(hdf["RT 2"]/tracer_hl)
+    hdf["Flow 3"] = hdf["Area 3"]*Flow2*2**(hdf["RT 3"]/tracer_hl)
+    hdf["Flow Sum"] = hdf["Flow 1"] + hdf["Flow 2"] + hdf["Flow 3"]
+    hdf["Non-Loss Corrected"] = hdf["Flow 3"]/hdf["Flow Sum"]
+    #check if hdf["Non-Loss Corrected"][dose_column] is NaN
+    hdf["Non-Loss Corrected"] = hdf["Non-Loss Corrected"].astype(float)
+    if np.isnan(hdf["Non-Loss Corrected"][dose_column]).any():
+        hdf["Non-Loss Corrected"][dose_column] = 1
+    Correction_Factor = float(hdf["Non-Loss Corrected"][dose_column])/float(hdf["Non-Loss Corrected"][in_vitro_column])
+    hdf["Percent_Intact"] = hdf["Non-Loss Corrected"]*Correction_Factor
+    return hdf
+
+def time_difference(start_time, end_time):
+    import datetime
+    start_datetime = datetime.datetime.combine(datetime.date.today(), start_time)
+    end_datetime = datetime.datetime.combine(datetime.date.today(), end_time)
+    return (end_datetime - start_datetime).total_seconds()
+
+def average_time(t1_series, t2_series, start_time):
+    import datetime
+    # Convert both series to seconds from midnight
+    t1_secs = t1_series.apply(lambda t: time_difference(start_time, t))
+    t2_secs = t2_series.apply(lambda t: time_difference(start_time, t))
+    
+    # Calculate the average time in seconds from midnight
+    avg_secs = (t1_secs + t2_secs) / 2
+    
+    # Convert the average time back to a datetime.time object
+    avg_times = avg_secs.apply(lambda s: datetime.time(hour=int(s // 3600), minute=int((s // 60) % 60), second=int(s % 60)))
+    
+    return avg_times
+
+def correctPlasma(hdf,pc,start_time):
+    # calculate the average time and time difference
+    pc["time avg"] = average_time(pc["draw start"], pc["draw finish"], start_time)
+
+    # Filter out rows that don't have "min" in their "Name" column
+    pc = pc[pc['Barcode'].str.contains('PL')]
+
+    # Extract the time values from the "time avg" column of the pc dataframe
+    pc_times = pc['time avg'].apply(lambda x: (x.hour * 3600 + x.minute * 60 + x.second) / 60)
+
+    # Filter out rows that don't have "min" in their "Name" column
+    hdf = hdf[hdf['Name'].str.contains('min')]
+    # Remove rows with NaN values in the Percent_Intact column
+    hdf = hdf.dropna(subset=['Percent_Intact'])
+    hdf["times"] = hdf["Name"].apply(lambda x: int(x.split()[0]))
+    #sort hdf by times
+    hdf = hdf.sort_values(by=['times'])
+
+    # Extract the correction values from the "Percent Intact" column of the hplc_corrections dataframe
+    correction_values = hdf['Percent_Intact']
+
+    # Interpolate the correction values for the time points in the pc dataframe
+    interpolated_corrections = np.interp(pc_times, hdf["times"], correction_values) #fitting function
+
+    # Apply the correction to the "muci" column of the pc dataframe
+    pc['muci_corrected'] = pc['muci '] * interpolated_corrections
+    return pc
