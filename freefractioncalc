@@ -85,3 +85,21 @@ class FreeFraction:
 
         return average, std_dev
 
+import unittest
+
+class TestCalculateAverageStd(unittest.TestCase):
+    def test_calculate_average_std(self):
+        # Sample final_results dictionary
+        final_results = {'A': 0.5, 'B': 0.4, 'C': 0.6, 'D': 0.3}
+
+        expected_average = 0.45
+        expected_std_dev = 0.1299038105676658
+
+        actual_average, actual_std_dev = calculate_average_std(final_results)
+
+        self.assertEqual(actual_average, expected_average)
+        self.assertAlmostEqual(actual_std_dev, expected_std_dev, places=8)
+
+if __name__ == '__main__':
+    unittest.main()
+
