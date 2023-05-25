@@ -2,8 +2,9 @@ import os
 import pandas as pd
 import numpy as np
 import seaborn as sns
+import statistics
 
-#FF calc MDL100907
+
 class FreeFraction:
     def __init__(self, halflife, bkg):
         self.halflife = halflife
@@ -14,7 +15,7 @@ class FreeFraction:
 
         self.sample_positions = [1, 2, 3, 4, 5]  # Adjust the positions as needed
 
-    def parsevalues(self):
+    def parse_values(self):
         df = pd.read_excel('FF Calculator 2022 v2 EJ.xls', skiprows=20)
 
         sample_values = {}
@@ -37,7 +38,7 @@ class FreeFraction:
         # Return the dictionary with sample values
         return sample_values
 
-    def columnfcalc(self, sample_values):
+    def columnf_calc(self, sample_values):
         tube_results = {}
 
         for tube in tubes:
@@ -59,7 +60,7 @@ class FreeFraction:
 
         return tube_results
 
-    def ffcalc(self, sample_values):
+    def ff_calc(self, sample_values):
         final_results = {}
 
         for tube in self.tubes:
@@ -73,3 +74,14 @@ class FreeFraction:
             final_results[tube] = final_calculation
 
         return final_results
+
+    def calculate_average_std(final_results):
+        # Extract the values from the final_results dictionary
+        results_values = list(final_results.values())
+
+        average = statistics.mean(results_values)
+
+        std_dev = statistics.stdev(results_values)
+
+        return average, std_dev
+
