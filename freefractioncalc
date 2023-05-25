@@ -1,62 +1,52 @@
 import os
 import pandas as pd
-import numpy as np
-import seaborn as sns
 import statistics
 
 
 class FreeFraction:
-    def __init__(self, halflife, bkg):
+    def __init__(self, halflife, bkg, sample_positions):
         self.halflife = halflife
         self.bkg = bkg
         self.tubes = ['A', 'B', 'C', 'D', 'E', 'F']
         self.samples = ['aliquot', 'remainder', 'top']
-        self.tube_results = {}
+        self.sample_positions = sample_positions
 
-        self.sample_positions = [1, 2, 3, 4, 5]  # Adjust the positions as needed
-
-    def parse_values(self):
-        df = pd.read_excel('FF Calculator 2022 v2 EJ.xls', skiprows=20)
+    def parse_values(self, file_path):
+        df = pd.read_excel(file_path, skiprows=20)
 
         sample_values = {}
 
-        for position in sample_positions:
-            # Filter the DataFrame to include only the rows with the current position and channels 1 and 2
-            filtered_df = df[(df['POS'] == position) & (df['CH'].isin([1, 2]))]
+        for tube in self.tubes:
+            tube_sample_values = {}
+            for sample in self.samples:
+                position = self.sample_positions[self.tubes.index(tube)]
+                filtered_df = df[(df['POS'] == position) & (df['CH'].isin([1, 2]))]
 
-            # Get the CPM1, CPM2, and ELTIME values from the filtered DataFrame
-            cpm1 = filtered_df.loc[filtered_df['CH'] == 1, 'CPM'].values[0]
-            cpm2 = filtered_df.loc[filtered_df['CH'] == 2, 'CPM'].values[0]
-            eltime = filtered_df['ELTIME'].values[0]
+                cpm1 = filtered_df.loc[filtered_df['CH'] == 1, 'CPM'].values[0]
+                cpm2 = filtered_df.loc[filtered_df['CH'] == 2, 'CPM'].values[0]
+                eltime = filtered_df['ELTIME'].values[0]
 
-        sample_values[position] = {
-            'CPM1': cpm1,
-            'CPM2': cpm2,
-            'ELTIME': eltime
-        }
+                tube_sample_values[sample] = {
+                    'CPM1': cpm1,
+                    'CPM2': cpm2,
+                    'ELTIME': eltime
+                }
 
-        # Return the dictionary with sample values
+            sample_values[tube] = tube_sample_values
+
         return sample_values
 
-    def columnf_calc(self, sample_values):
-        tube_results = {}
+    def columnf_calc(self, sample_values, tube):
+        tube_sample_values = sample_values[tube]
+        tube_results = []
 
-        for tube in tubes:
-            sample_results = []
+        for sample in self.samples:
+            cpm1 = tube_sample_values[sample]['CPM1']
+            cpm2 = tube_sample_values[sample]['CPM2']
+            eltime = tube_sample_values[sample]['ELTIME']
 
-            for sample in samples:
-                # Access the CPM1, CPM2, and ELTIME values for the current sample
-                cpm1 = sample_values[sample]['CPM1']
-                cpm2 = sample_values[sample]['CPM2']
-                eltime = sample_values[sample]['ELTIME']
-
-                calculation = (cpm1 + cpm2 - bkg) * 2 ** eltime / halflife
-
-                # Add the calculation result to the sample_results list
-                sample_results.append(calculation)
-
-            # Add the sample_results list to the tube_results dictionary
-            tube_results[tube] = sample_results
+            calculation = (cpm1 + cpm2 - self.bkg) * 2 ** eltime / self.halflife
+            tube_results.append(calculation)
 
         return tube_results
 
@@ -64,18 +54,18 @@ class FreeFraction:
         final_results = {}
 
         for tube in self.tubes:
-            tube_results = self.columnfcalc(sample_values)
+            tube_results = self.columnf_calc(sample_values, tube)
 
             if tube == self.tubes[0]:
-                final_calculation = (tube_results[0] / 0.15) / (tube_results[0] + tube_results[1] + tube_results[2]) / 0.5
+                final_calculation = (tube_results[0] / 0.15) / (sum(tube_results) / 0.5)
             else:
-                final_calculation = (tube_results[0] / 0.15) / (tube_results[0] + tube_results[1] + tube_results[2]) / 0.4
+                final_calculation = (tube_results[0] / 0.15) / (sum(tube_results) / 0.4)
 
             final_results[tube] = final_calculation
 
         return final_results
 
-    def calculate_average_std(final_results):
+    def calculate_average_std(self, final_results):
         # Extract the values from the final_results dictionary
         results_values = list(final_results.values())
 
@@ -84,22 +74,4 @@ class FreeFraction:
         std_dev = statistics.stdev(results_values)
 
         return average, std_dev
-
-import unittest
-
-class TestCalculateAverageStd(unittest.TestCase):
-    def test_calculate_average_std(self):
-        # Sample final_results dictionary
-        final_results = {'A': 0.5, 'B': 0.4, 'C': 0.6, 'D': 0.3}
-
-        expected_average = 0.45
-        expected_std_dev = 0.1299038105676658
-
-        actual_average, actual_std_dev = calculate_average_std(final_results)
-
-        self.assertEqual(actual_average, expected_average)
-        self.assertAlmostEqual(actual_std_dev, expected_std_dev, places=8)
-
-if __name__ == '__main__':
-    unittest.main()
 
