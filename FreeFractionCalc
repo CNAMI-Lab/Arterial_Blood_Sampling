@@ -3,13 +3,18 @@ import pandas as pd
 import statistics
 
 
+
 class FreeFraction:
-    def __init__(self, halflife, bkg, sample_positions):
+    def __init__(self, halflife, bkg, tubes, samples, tube_results, sample_values, sample_positions, final_results, file_path):
         self.halflife = halflife
         self.bkg = bkg
-        self.tubes = ['A', 'B', 'C', 'D', 'E', 'F']
-        self.samples = ['aliquot', 'remainder', 'top']
+        self.tubes = tubes
+        self.samples = samples
+        self.sample_values = sample_values
+        self.tube_results = tube_results
         self.sample_positions = sample_positions
+        self.final_results = final_results
+        self.file_path = file_path
 
     def parse_values(self, file_path):
         df = pd.read_excel(file_path, skiprows=20)
