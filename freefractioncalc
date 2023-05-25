@@ -1,0 +1,75 @@
+import os
+import pandas as pd
+import numpy as np
+import seaborn as sns
+
+#FF calc MDL100907
+class FreeFraction:
+    def __init__(self, halflife, bkg):
+        self.halflife = halflife
+        self.bkg = bkg
+        self.tubes = ['A', 'B', 'C', 'D', 'E', 'F']
+        self.samples = ['aliquot', 'remainder', 'top']
+        self.tube_results = {}
+
+        self.sample_positions = [1, 2, 3, 4, 5]  # Adjust the positions as needed
+
+    def parsevalues(self):
+        df = pd.read_excel('FF Calculator 2022 v2 EJ.xls', skiprows=20)
+
+        sample_values = {}
+
+        for position in sample_positions:
+            # Filter the DataFrame to include only the rows with the current position and channels 1 and 2
+            filtered_df = df[(df['POS'] == position) & (df['CH'].isin([1, 2]))]
+
+            # Get the CPM1, CPM2, and ELTIME values from the filtered DataFrame
+            cpm1 = filtered_df.loc[filtered_df['CH'] == 1, 'CPM'].values[0]
+            cpm2 = filtered_df.loc[filtered_df['CH'] == 2, 'CPM'].values[0]
+            eltime = filtered_df['ELTIME'].values[0]
+
+        sample_values[position] = {
+            'CPM1': cpm1,
+            'CPM2': cpm2,
+            'ELTIME': eltime
+        }
+
+        # Return the dictionary with sample values
+        return sample_values
+
+    def columnfcalc(self, sample_values):
+        tube_results = {}
+
+        for tube in tubes:
+            sample_results = []
+
+            for sample in samples:
+                # Access the CPM1, CPM2, and ELTIME values for the current sample
+                cpm1 = sample_values[sample]['CPM1']
+                cpm2 = sample_values[sample]['CPM2']
+                eltime = sample_values[sample]['ELTIME']
+
+                calculation = (cpm1 + cpm2 - bkg) * 2 ** eltime / halflife
+
+                # Add the calculation result to the sample_results list
+                sample_results.append(calculation)
+
+            # Add the sample_results list to the tube_results dictionary
+            tube_results[tube] = sample_results
+
+        return tube_results
+
+    def ffcalc(self, sample_values):
+        final_results = {}
+
+        for tube in self.tubes:
+            tube_results = self.columnfcalc(sample_values)
+
+            if tube == self.tubes[0]:
+                final_calculation = (tube_results[0] / 0.15) / (tube_results[0] + tube_results[1] + tube_results[2]) / 0.5
+            else:
+                final_calculation = (tube_results[0] / 0.15) / (tube_results[0] + tube_results[1] + tube_results[2]) / 0.4
+
+            final_results[tube] = final_calculation
+
+        return final_results
