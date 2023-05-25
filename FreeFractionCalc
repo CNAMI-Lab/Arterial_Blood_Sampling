@@ -18,6 +18,8 @@ class FreeFraction:
 
         for tube in self.tubes:
             tube_sample_values = {}
+            
+            #parse out cpm1, cpm2, eltime based on given position
             for sample in self.samples:
                 position = self.sample_positions[self.tubes.index(tube)]
                 filtered_df = df[(df['POS'] == position) & (df['CH'].isin([1, 2]))]
@@ -31,11 +33,12 @@ class FreeFraction:
                     'CPM2': cpm2,
                     'ELTIME': eltime
                 }
-
+            #add this information to tube sample values dict
             sample_values[tube] = tube_sample_values
 
         return sample_values
 
+    #perform column f calculation
     def columnf_calc(self, sample_values, tube):
         tube_sample_values = sample_values[tube]
         tube_results = []
@@ -50,6 +53,7 @@ class FreeFraction:
 
         return tube_results
 
+    # perform final free fraction calculation
     def ff_calc(self, sample_values):
         final_results = {}
 
@@ -58,32 +62,35 @@ class FreeFraction:
             c_remainder = self.columnf_calc(sample_values, tube, 'remainder')
             c_top = self.columnf_calc(sample_values, tube, 'top')
 
+            # if tube A, divide by .5
             if tube == self.tubes[0]:
                 final_calculation = (c_aliquot[0] / 0.15) / (c_aliquot[0] + c_remainder[0] + c_top[0]) / 0.5
+                
+            #every other tube is divided by .4
             else:
                 final_calculation = (c_aliquot[0] / 0.15) / (c_aliquot[0] + c_remainder[0] + c_top[0]) / 0.4
 
+            #add these results to a dictionary corresponding to tube letter
             final_results[tube] = final_calculation
 
         return final_results
 
    
     def calculate_average_std(self, final_results):
-        # Extract the values from the final_results dictionary
+        # extract the values from the final_results dictionary
         results_values = list(final_results.values())
+        
+        #saline controls are tubes E and F
         saline = results_values[-2:]
 
         average = statistics.mean(results_values)
-
         std_dev = statistics.stdev(results_values)
-
         saline_average = statistics.mean(saline)
-
         saline_std = statistics.stdev(saline)
 
         return average, std_dev, saline_average, saline_std
 
-
+##unit tests below
 
 import unittest
 from freefractioncalc import FreeFraction
