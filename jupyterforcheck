@@ -1,0 +1,116 @@
+import os
+import pandas as pd
+import statistics
+import xlrd
+import numpy as np
+
+#%%
+class FreeFraction:
+    def __init__(self, halflife, bkg, tubes, samples, tube_results, sample_values, sample_positions, final_results, file_path):
+        self.halflife = 20.34
+        self.bkg = 28
+        self.tubes = tubes
+        self.samples = samples
+        self.sample_values = sample_values
+        self.tube_results = tube_results
+        self.sample_positions = sample_positions
+        self.final_results = final_results
+        self.file_path = file_path
+#%%
+file_path = 'FF Calculator 2022 v2 EJ.xls'
+sample_positions = {
+    'A': [14, 15, 16],
+    'B': [18, 19, 20],
+    'C': [22, 23, 24],
+    'D': [26, 27, 28],
+    'E': [30, 31, 32],
+    'F': [34, 35, 36]
+}
+#%%
+def parse_values(file_path, sample_positions):
+    df = pd.read_excel(file_path, skiprows=20)
+
+    sample_values = {}
+
+    for tube, positions in sample_positions.items():
+        print(f"Tube: {tube}")
+        tube_sample_values = {}
+        for position in positions:
+            print(f"Position: {position}")
+            current_row = df[(df['POS'] == position) & (df['CH'] == 1)]
+            next_row_empty = df['POS'].shift(-1).loc[current_row.index].isna().item()
+
+            cpm1 = current_row['CPM'].values[0] if not current_row.empty else None
+            eltime = current_row['ELTIME  '].values[0] if not current_row.empty else None
+
+            if next_row_empty:
+                next_row_cpm2 = df['CPM'].shift(-1).loc[current_row.index].dropna()
+                if not next_row_cpm2.empty:
+                    cpm2 = next_row_cpm2.values[0]
+
+            tube_sample_values[position] = {
+                'CPM1': cpm1,
+                'CPM2': cpm2,
+                'ELTIME': eltime
+            }
+
+        sample_values[tube] = tube_sample_values
+
+    return sample_values
+sample_values = parse_values(file_path, sample_positions)
+sample_values
+#%%
+def columnf_calc(sample_values, tube):
+    tube_results = {}
+    file_path = 'FF Calculator 2022 v2 EJ.xls'
+    sample_positions = {
+        'A': [14, 15, 16],
+        'B': [18, 19, 20],
+        'C': [22, 23, 24],
+        'D': [26, 27, 28],
+        'E': [30, 31, 32],
+        'F': [34, 35, 36]
+    }
+    parsed_values = parse_values(file_path, sample_positions)
+    halflife = 20.34
+    bkg = 28
+
+    for tube, tube_sample_values in parsed_values.items():
+        tube_results[tube] = {}
+        for position, values in tube_sample_values.items():
+            cpm1 = values['CPM1']
+            cpm2 = values['CPM2']
+            eltime = values['ELTIME']
+            print("CPM1:", cpm1, "CPM2:", cpm2, "ELTIME:", eltime)
+
+            calculation = calculation = (cpm1 + cpm2 - bkg) * 2 ** (eltime / halflife)
+            print ("Calculation: ", calculation)
+            tube_results[tube][position] = calculation
+
+    return tube_results
+
+tube_results = columnf_calc(sample_values, tube)
+tube_results
+#%%
+def ff_calc():
+    final_results = {}
+
+    for tube, tube_sample_values in sample_values.items():
+        positions = tube_sample_values.keys()
+        c_aliquot = sum(tube_results.get(tube, {}).get(position, {}).get(0, 0) for position in positions)
+        c_remainder = sum(tube_results.get(tube, {}).get(position, {}).get(1, 0) for position in positions)
+        c_top = sum(tube_results.get(tube, {}).get(position, {}).get(2, 0) for position in positions)
+        print("Aliquot:", c_aliquot, "Remainder:", c_remainder, "Top:", c_top)
+
+
+        if tube == list(sample_values.keys())[0]:
+            final_calculation = (c_aliquot / 0.15) / (c_aliquot + c_remainder + c_top) / 0.5
+        else:
+            final_calculation = (c_aliquot / 0.15) / (c_aliquot + c_remainder + c_top) / 0.4
+
+        final_results[tube] = final_calculation
+
+    return final_results
+
+final_results = ff_calc()
+final_result
