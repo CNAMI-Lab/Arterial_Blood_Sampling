@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 import statistics
-
+import xlrd
 
 
 class FreeFraction:
@@ -16,35 +16,34 @@ class FreeFraction:
         self.final_results = final_results
         self.file_path = file_path
 
-    def parse_values(self, file_path):
+    def parse_values(self, file_path): #tested, should work
         df = pd.read_excel(file_path, skiprows=20)
 
         sample_values = {}
 
-        for tube in self.tubes:
+        for tube, positions in sample_positions.items():
             tube_sample_values = {}
-            
-            #parse out cpm1, cpm2, eltime based on given position
-            for sample in self.samples:
-                position = self.sample_positions[self.tubes.index(tube)]
-                filtered_df = df[(df['POS'] == position) & (df['CH'].isin([1, 2]))]
+            for position in positions:
+                current_row = df[(df['POS'] == position) & (df['CH'] == 1)]
+                next_row_empty = df['POS'].shift(-1).loc[current_row.index].isna().item()
 
-                cpm1 = filtered_df.loc[filtered_df['CH'] == 1, 'CPM'].values[0]
-                cpm2 = filtered_df.loc[filtered_df['CH'] == 2, 'CPM'].values[0]
-                eltime = filtered_df['ELTIME'].values[0]
+                cpm1 = current_row['CPM'].values[0] if not current_row.empty else None
+                eltime = current_row['ELTIME  '].values[0] if not current_row.empty else None
 
-                tube_sample_values[sample] = {
+                if next_row_empty:
+                    next_row_cpm2 = df['CPM'].shift(-1).loc[current_row.index].dropna()
+                    if not next_row_cpm2.empty:
+                        cpm2 = next_row_cpm2.values[0]
+
+                tube_sample_values[position] = {
                     'CPM1': cpm1,
                     'CPM2': cpm2,
                     'ELTIME': eltime
                 }
-            #add this information to tube sample values dict
-            sample_values[tube] = tube_sample_values
 
-        return sample_values
+        sample_values[tube] = tube_sample_values
 
-    #perform column f calculation
-    def columnf_calc(self, sample_values, tube):
+    def columnf_calc(self, sample_values, tube): #tested, keyerror a
         tube_sample_values = sample_values[tube]
         tube_results = []
 
@@ -58,34 +57,26 @@ class FreeFraction:
 
         return tube_results
 
-    # perform final free fraction calculation
-    def ff_calc(self, sample_values):
+    def ff_calc(self, sample_values): #not working because of columnf
         final_results = {}
 
         for tube in self.tubes:
-            c_aliquot = self.columnf_calc(sample_values, tube, 'aliquot')
-            c_remainder = self.columnf_calc(sample_values, tube, 'remainder')
-            c_top = self.columnf_calc(sample_values, tube, 'top')
+            c_aliquot = self.columnf_calc(sample_values, tube)
+            c_remainder = self.columnf_calc(sample_values, tube)
+            c_top = self.columnf_calc(sample_values, tube)
 
-            # if tube A, divide by .5
             if tube == self.tubes[0]:
                 final_calculation = (c_aliquot[0] / 0.15) / (c_aliquot[0] + c_remainder[0] + c_top[0]) / 0.5
-                
-            #every other tube is divided by .4
             else:
                 final_calculation = (c_aliquot[0] / 0.15) / (c_aliquot[0] + c_remainder[0] + c_top[0]) / 0.4
 
-            #add these results to a dictionary corresponding to tube letter
             final_results[tube] = final_calculation
 
         return final_results
 
-   
-    def calculate_average_std(self, final_results):
-        # extract the values from the final_results dictionary
+    def calculate_average_std(self, final_results): #this is fine
+        # Extract the values from the final_results dictionary
         results_values = list(final_results.values())
-        
-        #saline controls are tubes E and F
         saline = results_values[-2:]
 
         average = statistics.mean(results_values)
@@ -94,6 +85,7 @@ class FreeFraction:
         saline_std = statistics.stdev(saline)
 
         return average, std_dev, saline_average, saline_std
+
 
 ##unit tests below
 
