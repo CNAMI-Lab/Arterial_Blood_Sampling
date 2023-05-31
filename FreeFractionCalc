@@ -1,34 +1,40 @@
 import os
 import pandas as pd
+import numpy as np
 import statistics
 import xlrd
+import matplotlib.pyplot as plt
 
 
 class FreeFraction:
-    def __init__(self, halflife, bkg, tubes, samples, tube_results, sample_values, sample_positions, final_results, file_path):
+    def __init__(self, halflife, bkg, tubes, tube_results, sample_values, sample_positions, final_results,
+                 file_path):
+
         self.halflife = halflife
         self.bkg = bkg
         self.tubes = tubes
-        self.samples = samples
-        self.sample_values = sample_values
         self.tube_results = tube_results
+        self.sample_values = sample_values
         self.sample_positions = sample_positions
         self.final_results = final_results
         self.file_path = file_path
 
-    def parse_values(self, file_path): #tested, should work
+    def parse_values(self, file_path, sample_positions): #WORKS
         df = pd.read_excel(file_path, skiprows=20)
 
         sample_values = {}
 
         for tube, positions in sample_positions.items():
+            print(f"Tube: {tube}")
             tube_sample_values = {}
             for position in positions:
+                print(f"Position: {position}")
                 current_row = df[(df['POS'] == position) & (df['CH'] == 1)]
                 next_row_empty = df['POS'].shift(-1).loc[current_row.index].isna().item()
 
                 cpm1 = current_row['CPM'].values[0] if not current_row.empty else None
                 eltime = current_row['ELTIME  '].values[0] if not current_row.empty else None
+                # may need to change spaces for next study
 
                 if next_row_empty:
                     next_row_cpm2 = df['CPM'].shift(-1).loc[current_row.index].dropna()
@@ -41,40 +47,60 @@ class FreeFraction:
                     'ELTIME': eltime
                 }
 
-        sample_values[tube] = tube_sample_values
+            sample_values[tube] = tube_sample_values
 
-    def columnf_calc(self, sample_values, tube): #tested, keyerror a
-        tube_sample_values = sample_values[tube]
-        tube_results = []
+        return sample_values
 
-        for sample in self.samples:
-            cpm1 = tube_sample_values[sample]['CPM1']
-            cpm2 = tube_sample_values[sample]['CPM2']
-            eltime = tube_sample_values[sample]['ELTIME']
+    sample_values = parse_values(file_path, sample_positions)
 
-            calculation = (cpm1 + cpm2 - self.bkg) * 2 ** eltime / self.halflife
-            tube_results.append(calculation)
+    def columnf_calc(self): #WORKS
+        tube_results = {}
+        file_path = 'FF Calculator 2022 v2 EJ.xls'
+        sample_positions = {
+            'A': [14, 15, 16],
+            'B': [18, 19, 20],
+            'C': [22, 23, 24],
+            'D': [26, 27, 28],
+            'E': [30, 31, 32],
+            'F': [34, 35, 36]
+        }
+        parsed_values = parse_values(file_path, sample_positions)
+        self.halflife = 20.34
+        self.bkg = 28
+
+        for tube, tube_sample_values in parsed_values.items():
+            tube_results[tube] = {}
+            for position, values in tube_sample_values.items():  # this is probably the issue
+                cpm1 = values['CPM1']
+                cpm2 = values['CPM2']
+                eltime = values['ELTIME']
+
+                calculation = (cpm1 + cpm2 - self.bkg) * 2 ** eltime / self.halflife  # calc is off
+                tube_results[tube][position] = calculation
 
         return tube_results
 
-    def ff_calc(self, sample_values): #not working because of columnf
+    def ff_calc(self):  # off
         final_results = {}
 
-        for tube in self.tubes:
-            c_aliquot = self.columnf_calc(sample_values, tube)
-            c_remainder = self.columnf_calc(sample_values, tube)
-            c_top = self.columnf_calc(sample_values, tube)
+        for tube, tube_sample_values in sample_values.items():
+            positions = tube_sample_values.keys()
+            c_aliquot = sum(tube_results.get(tube, {}).get(position, 0) for position in positions)
+            c_remainder = sum(tube_results.get(tube, {}).get(position, 0) for position in positions)
+            c_top = sum(tube_results.get(tube, {}).get(position, 0) for position in positions)
 
-            if tube == self.tubes[0]:
-                final_calculation = (c_aliquot[0] / 0.15) / (c_aliquot[0] + c_remainder[0] + c_top[0]) / 0.5
+            if tube == list(sample_values.keys())[0]:
+                final_calculation = (c_aliquot / 0.15) / (c_aliquot + c_remainder + c_top) / 0.5
             else:
-                final_calculation = (c_aliquot[0] / 0.15) / (c_aliquot[0] + c_remainder[0] + c_top[0]) / 0.4
+                final_calculation = (c_aliquot / 0.15) / (c_aliquot + c_remainder + c_top) / 0.4
 
             final_results[tube] = final_calculation
 
         return final_results
 
-    def calculate_average_std(self, final_results): #this is fine
+    final_results = ff_calc(self)
+
+    def calculate_average_std(self, final_results):  # this is fine
         # Extract the values from the final_results dictionary
         results_values = list(final_results.values())
         saline = results_values[-2:]
@@ -85,6 +111,49 @@ class FreeFraction:
         saline_std = statistics.stdev(saline)
 
         return average, std_dev, saline_average, saline_std
+
+    def create_boxplot(self, final_results):
+        data = [values for values in final_results.values()]
+        average, std_dev, saline_average, saline_std = self.calculate_average_std(final_results)
+
+        fig, ax = plt.subplots()
+        ax.boxplot(data)
+
+        ax.set_xticklabels(final_results.keys())
+        ax.set_xlabel('Tube')
+        ax.set_ylabel('Final Results')
+        ax.set_title('Boxplot of Final Results')
+        plt.text(0.95, 0.95,
+                 f'Average: {average:.2f}\nStd Dev: {std_dev:.2f}\nSaline Average: {saline_average:.2f}\nSaline Std: {saline_std:.2f}',
+                 transform=ax.transAxes, fontsize=10, va='top', ha='right',
+                 bbox=dict(facecolor='white', edgecolor='gray', boxstyle='round'))
+
+        plt.show()
+
+
+#instance variables for MDL
+self.halflife = 20.34
+self.bkg = 28
+self.tubes = ['A', 'B', 'C', 'D', 'E', 'F']
+self.sample_values = sample_values
+self.tube_results = tube_results
+self.sample_positions = {
+    'A': [14, 15, 16],
+    'B': [18, 19, 20],
+    'C': [22, 23, 24],
+    'D': [26, 27, 28],
+    'E': [30, 31, 32],
+    'F': [34, 35, 36]
+}
+self.final_results = final_results
+self.file_path = 'FF Calculator 2022 v2 EJ.xls'
+
+ff = FreeFraction(halflife, bkg, tubes, samples, tube_results, sample_values, sample_positions, final_results,
+                  file_path)
+ff.run()
+
+#instance variables for ASEM
+
 
 
 ##unit tests below
