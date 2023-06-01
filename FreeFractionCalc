@@ -219,8 +219,9 @@ with pd.ExcelWriter(excel_filename, engine='openpyxl') as writer:
     # Create the scatter plot for the first set of data
     fig, (ax1, ax2) = plt.subplots(2, figsize=(8, 12))
 
-    ax1.scatter(range(len(data_1['Tubes'])), data_1['Values'], s=50)
-    ax1.set_xlabel('Tubes', fontsize=14)
+    ax1.scatter(data_1['Tubes'], data_1['Values'], s=50)
+    ax1.set_xlabel('Tube Labels', fontsize=14)
+    ax1.set_xticklabels(data_1['Tubes'])
     ax1.set_ylabel('Free Fraction', fontsize=14)
     ax1.set_title('Free Fraction - FF_20221019_18FASEM', fontsize=16)
 
@@ -230,22 +231,22 @@ with pd.ExcelWriter(excel_filename, engine='openpyxl') as writer:
     ax1.text(2, 0.2, 'Plasma', ha='center')
     ax1.text(3, 0.2, 'Plasma', ha='center')
 
-    ax1.errorbar(range(len(data_1['Tubes']) - 2), data_1['Values'][:-2], yerr=std_dev_plasma_1, fmt='none', ecolor='blue', capsize=3, label='Plasma')
+    ax1.errorbar(range(len(data_1['Tubes']) - 2), data_1['Values'][:-2], yerr=std_dev_plasma_1, fmt='none', ecolor='red', capsize=3, label='Plasma')
     ax1.errorbar(range(len(data_1['Tubes']) - 2, len(data_1['Tubes'])), data_1['Values'][-2:], yerr=std_dev_controls_1, fmt='none', ecolor='red', capsize=3, label='Controls')
 
     ax1.legend()
 
     # Create the scatter plot for the second set of data
-    ax2.scatter(range(len(data_2['Tubes'])), data_2['Values'], s=50)
-    ax2.set_xlabel('Tubes', fontsize=14)
+    ax2.scatter(data_2['Tubes'], data_2['Values'], s=50)
+    ax2.set_xlabel('Tube Labels', fontsize=14)
+    ax2.set_xticklabels(data_2['Tubes'])
     ax2.set_ylabel('Free Fraction', fontsize=14)
     ax2.set_title('Free Fraction - FF_MDL', fontsize=16)
 
-    ax2.text(4, 0.85, 'Controls', ha='center')
-    ax2.text(0, 0.2, 'Plasma', ha='center')
-    ax2.text(1, 0.2, 'Plasma', ha='center')
-    ax2.text(2, 0.2, 'Plasma', ha='center')
-    ax2.text(3, 0.2, 'Plasma', ha='center')
+    ax2.text(0, data_2['Values'][0] + 0.03, 'Plasma', ha='center')
+    ax2.text(1, data_2['Values'][1] + 0.03, 'Plasma', ha='center')
+    ax2.text(2, data_2['Values'][2] + 0.03, 'Plasma', ha='center')
+    ax2.text(3, data_2['Values'][3] + 0.03, 'Plasma', ha='center')
 
     ax2.errorbar(range(len(data_2['Tubes']) - 2), data_2['Values'][:-2], yerr=std_dev_plasma_2, fmt='none', ecolor='green', capsize=3, label='Plasma')
     ax2.errorbar(range(len(data_2['Tubes']) - 2, len(data_2['Tubes'])), data_2['Values'][-2:], yerr=std_dev_controls_2, fmt='none', ecolor='orange', capsize=3, label='Controls')
