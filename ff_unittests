@@ -1,0 +1,125 @@
+
+##unit tests below##
+
+import unittest
+from freefractioncalc import FreeFraction
+
+
+class TestParsing(unittest.TestCase):
+    def test_parse_values(self):
+        file_path = 'FF Calculator 2022 v2 EJ.xls'
+        sample_positions = {
+            'A': [14, 15, 16],
+            'B': [18, 19, 20],
+            'C': [22, 23, 24],
+            'D': [26, 27, 28],
+            'E': [30, 31, 32],
+            'F': [34, 35, 36]
+        }
+
+        expected_values = {
+            'A': [
+                {'CPM1': 22914, 'CPM2': 7819, 'ELTIME': 2.94},
+                {'CPM1': 12162, 'CPM2': 4073, 'ELTIME': 4.24},
+                {'CPM1': 178175, 'CPM2': 64150, 'ELTIME': 4.69}
+            ],
+            'B': [
+                {'CPM1': 16391, 'CPM2': 5540, 'ELTIME': 7.28},
+                {'CPM1': 4229, 'CPM2': 1402, 'ELTIME': 8.58},
+                {'CPM1': 123930, 'CPM2': 45030, 'ELTIME': 9.1}
+            ],
+            'C': [
+                {'CPM1': 15093, 'CPM2': 5119, 'ELTIME': 11.69},
+                {'CPM1': 5726, 'CPM2': 1707, 'ELTIME': 12.99},
+                {'CPM1': 106648, 'CPM2': 37533, 'ELTIME': 13.67}
+            ],
+        }
+
+        free_fraction = FreeFraction(halflife=20.34, bkg=28.0)
+        sample_values = free_fraction.parse_values(file_path)
+
+        for tube, positions in sample_positions.items():
+            for position, sample_values in zip(positions, sample_values[tube]):
+                self.assertEqual(sample_values['CPM1'], expected_values[tube][position]['CPM1'])
+                self.assertEqual(sample_values['CPM2'], expected_values[tube][position]['CPM2'])
+                self.assertEqual(sample_values['ELTIME'], expected_values[tube][position]['ELTIME'])
+                # Add more assertions as needed for other sample values
+
+if __name__ == '__main__':
+    unittest.main()
+
+import unittest
+from freefractioncalc import FreeFraction
+
+
+class TestFFCalc(unittest.TestCase):
+    def setUp(self):
+        self.halflife = 20.34
+        self.bkg = 28
+        self.tubes = ['A', 'B', 'C']
+        self.samples = ['aliquot', 'remainder', 'top']
+
+    def test_ff_calc(self):
+        sample_values = {
+            'aliquot': {'A': {'CPM1': 22914, 'CPM2': 7819, 'ELTIME': 2.94},
+                        'B': {'CPM1': 16391, 'CPM2': 5540, 'ELTIME': 7.28},
+                        'C': {'CPM1': 15093, 'CPM2': 5119, 'ELTIME': 11.69}},
+            'remainder': {'A': {'CPM1': 12162, 'CPM2': 4073, 'ELTIME': 4.24},
+                          'B': {'CPM1': 4229, 'CPM2': 1402, 'ELTIME': 8.58},
+                          'C': {'CPM1': 4229, 'CPM2': 1402, 'ELTIME': 8.58}},
+            'top': {'A': {'CPM1': 178175, 'CPM2': 64150, 'ELTIME': 4.69},
+                    'B': {'CPM1': 123930, 'CPM2': 45030, 'ELTIME': 9.1},
+                    'C': {'CPM1': 106648, 'CPM2': 37533, 'ELTIME': 13.67}}
+        }
+        free_fraction = FreeFraction(self.halflife, self.bkg, self.tubes, self.samples)
+        final_results = free_fraction.ff_calc(sample_values)
+
+        expected_results = {
+            'A': (sample_values['aliquot']['A']['CPM1'] / 0.15) / (
+                    sample_values['aliquot']['A']['CPM1'] + sample_values['remainder']['A']['CPM1'] +
+                    sample_values['top']['A']['CPM1']) / 0.5,
+            'B': (sample_values['aliquot']['B']['CPM1'] / 0.15) / (
+                    sample_values['aliquot']['B']['CPM1'] + sample_values['remainder']['B']['CPM1'] +
+                    sample_values['top']['B']['CPM1']) / 0.4,
+            'C': (sample_values['aliquot']['C']['CPM1'] / 0.15) / (
+                    sample_values['aliquot']['C']['CPM1'] + sample_values['remainder']['C']['CPM1'] +
+                    sample_values['top']['C']['CPM1']) / 0.4
+        }
+
+        self.assertEqual(final_results, expected_results)
+
+
+import unittest
+import statistics
+
+
+def calculate_average_std(final_results):
+    results_values = list(final_results.values())
+    saline = results_values[-2:]
+
+    average = statistics.mean(results_values)
+    std_dev = statistics.stdev(results_values)
+    saline_average = statistics.mean(saline)
+    saline_std = statistics.stdev(saline)
+
+    return average, std_dev, saline_average, saline_std
+
+
+class TestCalculateAverageStd(unittest.TestCase):
+    def test_calculate_average_std(self):
+        final_results = {'A': 0.336, 'B': 0.281, 'C': 0.296, 'D': 0.310, 'E': 0.878, 'F': 0.884}
+        expected_average = 0.306
+        expected_std_dev = 0.02
+        expected_saline_average = .881
+        expected_saline_std = 0.003
+
+        actual_average, actual_std_dev, actual_saline_average, actual_saline_std = calculate_average_std(final_results)
+
+        self.assertEqual(actual_average, expected_average)
+        self.assertAlmostEqual(actual_std_dev, expected_std_dev, places=8)
+        self.assertEqual(actual_saline_average, expected_saline_average)
+        self.assertAlmostEqual(actual_saline_std, expected_saline_std, places=8)
+
+
+if __name__ == '__main__':
+    unittest.main()
