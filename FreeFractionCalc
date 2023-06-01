@@ -19,7 +19,7 @@ class FreeFraction:
         self.final_results = final_results
         self.file_path = file_path
 
-    def parse_values(self, file_path, sample_positions): #WORKS
+    def parse_values(self, file_path, sample_positions):  # WORKS
         df = pd.read_excel(file_path, skiprows=20)
 
         sample_values = {}
@@ -53,7 +53,7 @@ class FreeFraction:
 
     sample_values = parse_values(file_path, sample_positions)
 
-    def columnf_calc(self): #WORKS
+    def columnf_calc(self):  # WORKS
         tube_results = {}
         file_path = 'FF Calculator 2022 v2 EJ.xls'
         sample_positions = {
@@ -80,19 +80,27 @@ class FreeFraction:
 
         return tube_results
 
-    def ff_calc(self):  # off
+    def ff_calc(self):
         final_results = {}
 
-        for tube, tube_sample_values in sample_values.items():
-            positions = tube_sample_values.keys()
-            c_aliquot = sum(tube_results.get(tube, {}).get(position, 0) for position in positions)
-            c_remainder = sum(tube_results.get(tube, {}).get(position, 0) for position in positions)
-            c_top = sum(tube_results.get(tube, {}).get(position, 0) for position in positions)
+        for tube, positions in sample_positions.items():
+            tube_results = columnf_calc()[tube]
 
-            if tube == list(sample_values.keys())[0]:
-                final_calculation = (c_aliquot / 0.15) / (c_aliquot + c_remainder + c_top) / 0.5
+            calculation_values = []
+            for position in positions:
+                if position in tube_results:
+                    calculation_values.append(tube_results[position])
+                else:
+                    calculation_values.append(0)  # If position is missing, assume value of 0
+
+            c_aliquot, c_remainder, c_top = calculation_values
+            print("Tube:", tube, "Aliquot:", c_aliquot, "Remainder:", c_remainder, "Top:", c_top)
+
+            if tube == list(sample_positions.keys())[0]:
+                final_calculation = result = (c_aliquot / 0.15) / ((c_aliquot + c_remainder + c_top) / 0.5)
+
             else:
-                final_calculation = (c_aliquot / 0.15) / (c_aliquot + c_remainder + c_top) / 0.4
+                final_calculation = result = (c_aliquot / 0.15) / ((c_aliquot + c_remainder + c_top) / 0.4)
 
             final_results[tube] = final_calculation
 
@@ -100,29 +108,48 @@ class FreeFraction:
 
     final_results = ff_calc(self)
 
-    def calculate_average_std(self, final_results):  # this is fine
-        # Extract the values from the final_results dictionary
-        results_values = list(final_results.values())
-        saline = results_values[-2:]
+    def stats(self):
+        final_results = ff_calc()
+        results_values = list(final_results.values())[:4]
+        saline = list(final_results.values())[-2:]
 
         average = statistics.mean(results_values)
         std_dev = statistics.stdev(results_values)
         saline_average = statistics.mean(saline)
         saline_std = statistics.stdev(saline)
 
+        print("Average:", average, "Standard Deviation:", std_dev, "Saline Average: ", saline_average, "Saline StDev: ",
+              saline_std)
+
         return average, std_dev, saline_average, saline_std
 
-    def create_boxplot(self, final_results):
-        data = [values for values in final_results.values()]
-        average, std_dev, saline_average, saline_std = self.calculate_average_std(final_results)
+    def create_boxplot(self):
+        final_results = {'A': 0.3357582116707509,
+                         'B': 0.28148167731241813,
+                         'C': 0.29550856039431306,
+                         'D': 0.3099990954690565,
+                         'E': 0.8778051288501841,
+                         'F': 0.8837126248542743}
+
+        # final_results = ff_calc(self)
+
+        x_values = ['A', 'B', 'C', 'D', 'E', 'F']
+        y_values = [final_results[key] for key in x_values]
+        print(y_values)
+
+        # data = [0.3357582116707509, 0.28148167731241813, 0.29550856039431306, 0.3099990954690565, 0.8778051288501841, 0.8837126248542743]
 
         fig, ax = plt.subplots()
-        ax.boxplot(data)
 
-        ax.set_xticklabels(final_results.keys())
+        ax.boxplot(y_values)
+
+        ax.set_xticks(range(1, len(x_values) + 1))
+        ax.set_xticklabels(x_values)
+
         ax.set_xlabel('Tube')
-        ax.set_ylabel('Final Results')
-        ax.set_title('Boxplot of Final Results')
+        ax.set_ylabel('Free Fraction')
+        ax.set_title('Box Plot of Final Results')
+
         plt.text(0.95, 0.95,
                  f'Average: {average:.2f}\nStd Dev: {std_dev:.2f}\nSaline Average: {saline_average:.2f}\nSaline Std: {saline_std:.2f}',
                  transform=ax.transAxes, fontsize=10, va='top', ha='right',
@@ -131,28 +158,46 @@ class FreeFraction:
         plt.show()
 
 
-#instance variables for MDL
-self.halflife = 20.34
+# #instance variables for MDL
+# self.halflife = 20.34
+# self.bkg = 28
+# self.tubes = ['A', 'B', 'C', 'D', 'E', 'F']
+# self.sample_values = sample_values
+# self.tube_results = tube_results
+# self.sample_positions = {
+#     'A': [14, 15, 16],
+#     'B': [18, 19, 20],
+#     'C': [22, 23, 24],
+#     'D': [26, 27, 28],
+#     'E': [30, 31, 32],
+#     'F': [34, 35, 36]
+# }
+# self.final_results = final_results
+# self.file_path = 'FF Calculator 2022 v2 EJ.xls'
+
+
+# instance variables for 20221019_18FASEM
+
+self.halflife = 109.7
 self.bkg = 28
 self.tubes = ['A', 'B', 'C', 'D', 'E', 'F']
 self.sample_values = sample_values
 self.tube_results = tube_results
 self.sample_positions = {
-    'A': [14, 15, 16],
-    'B': [18, 19, 20],
-    'C': [22, 23, 24],
-    'D': [26, 27, 28],
-    'E': [30, 31, 32],
-    'F': [34, 35, 36]
+    'A': [109, 110, 111],
+    'B': [113, 114, 115],
+    'C': [117, 118, 119],
+    'D': [121, 122, 123],
+    'E': [125, 126, 127],
+    'F': [129, 130, 131]
 }
+
+self.file_path = '20221019_18FASEM.xlsx'
 self.final_results = final_results
-self.file_path = 'FF Calculator 2022 v2 EJ.xls'
 
-ff = FreeFraction(halflife, bkg, tubes, samples, tube_results, sample_values, sample_positions, final_results,
-                  file_path)
+ff = FreeFraction(halflife, bkg, tubes, tube_results, sample_values, sample_positions, final_results,
+                 file_path)
 ff.run()
-
-#instance variables for ASEM
 
 
 
