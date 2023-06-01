@@ -4,6 +4,7 @@ import numpy as np
 import statistics
 import xlrd
 import matplotlib.pyplot as plt
+from openpyxl.drawing.image import Image
 
 
 class FreeFraction:
