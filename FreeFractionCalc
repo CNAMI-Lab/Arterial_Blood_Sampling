@@ -124,41 +124,7 @@ class FreeFraction:
 
         return average, std_dev, saline_average, saline_std
 
-    def create_boxplot(self):
-        final_results = {'A': 0.3357582116707509,
-                         'B': 0.28148167731241813,
-                         'C': 0.29550856039431306,
-                         'D': 0.3099990954690565,
-                         'E': 0.8778051288501841,
-                         'F': 0.8837126248542743}
-
-        # final_results = ff_calc(self)
-
-        x_values = ['A', 'B', 'C', 'D', 'E', 'F']
-        y_values = [final_results[key] for key in x_values]
-        print(y_values)
-
-        # data = [0.3357582116707509, 0.28148167731241813, 0.29550856039431306, 0.3099990954690565, 0.8778051288501841, 0.8837126248542743]
-
-        fig, ax = plt.subplots()
-
-        ax.boxplot(y_values)
-
-        ax.set_xticks(range(1, len(x_values) + 1))
-        ax.set_xticklabels(x_values)
-
-        ax.set_xlabel('Tube')
-        ax.set_ylabel('Free Fraction')
-        ax.set_title('Box Plot of Final Results')
-
-        plt.text(0.95, 0.95,
-                 f'Average: {average:.2f}\nStd Dev: {std_dev:.2f}\nSaline Average: {saline_average:.2f}\nSaline Std: {saline_std:.2f}',
-                 transform=ax.transAxes, fontsize=10, va='top', ha='right',
-                 bbox=dict(facecolor='white', edgecolor='gray', boxstyle='round'))
-
-        plt.show()
-
-
+   
 # #instance variables for MDL
 # self.halflife = 20.34
 # self.bkg = 28
@@ -200,6 +166,103 @@ ff = FreeFraction(halflife, bkg, tubes, tube_results, sample_values, sample_posi
                  file_path)
 ff.run()
 
+#Plot results, save to excel sheet below
+final_results_1 = {
+    'A': 0.049870728512930146,
+    'B': 0.04213991024940731,
+    'C': 0.049001855069462516,
+    'D': 0.0453538823156846,
+    'E': 0.8378413782929937,
+    'F': 0.8754842529450337
+}#ASEM
+
+final_results_2 = {
+    'A': 0.3357582116707509,
+    'B': 0.28148167731241813,
+    'C': 0.29550856039431306,
+    'D': 0.3099990954690565,
+    'E': 0.8778051288501841,
+    'F': 0.8837126248542743
+}#MDL for comparison
+
+# Calculate averages and standard deviations for the first set of data
+results_values_1 = list(final_results_1.values())
+averages_plasma_1 = statistics.mean(results_values_1[:4])
+std_dev_plasma_1 = statistics.stdev(results_values_1[:4])
+averages_controls_1 = statistics.mean(results_values_1[-2:])
+std_dev_controls_1 = statistics.stdev(results_values_1[-2:])
+
+# Calculate averages and standard deviations for the second set of data
+results_values_2 = list(final_results_2.values())
+averages_plasma_2 = statistics.mean(results_values_2[:4])
+std_dev_plasma_2 = statistics.stdev(results_values_2[:4])
+averages_controls_2 = statistics.mean(results_values_2[-2:])
+std_dev_controls_2 = statistics.stdev(results_values_2[-2:])
+
+data_1 = {
+    'Tubes': list(final_results_1.keys()),
+    'Values': results_values_1,
+}
+df_1 = pd.DataFrame(data_1)
+
+data_2 = {
+    'Tubes': list(final_results_2.keys()),
+    'Values': results_values_2,
+}
+df_2 = pd.DataFrame(data_2)
+
+excel_filename = 'final_results.xlsx'
+with pd.ExcelWriter(excel_filename, engine='openpyxl') as writer:
+    df_1.to_excel(writer, index=False, sheet_name='FF_20221019_18FASEM')
+    df_2.to_excel(writer, index=False, sheet_name='FF_MDL')
+
+    # Create the scatter plot for the first set of data
+    fig, (ax1, ax2) = plt.subplots(2, figsize=(8, 12))
+
+    ax1.scatter(range(len(data_1['Tubes'])), data_1['Values'], s=50)
+    ax1.set_xlabel('Tubes', fontsize=14)
+    ax1.set_ylabel('Free Fraction', fontsize=14)
+    ax1.set_title('Free Fraction - FF_20221019_18FASEM', fontsize=16)
+
+    ax1.text(4, 0.85, 'Controls', ha='center')
+    ax1.text(0, 0.2, 'Plasma', ha='center')
+    ax1.text(1, 0.2, 'Plasma', ha='center')
+    ax1.text(2, 0.2, 'Plasma', ha='center')
+    ax1.text(3, 0.2, 'Plasma', ha='center')
+
+    ax1.errorbar(range(len(data_1['Tubes']) - 2), data_1['Values'][:-2], yerr=std_dev_plasma_1, fmt='none', ecolor='blue', capsize=3, label='Plasma')
+    ax1.errorbar(range(len(data_1['Tubes']) - 2, len(data_1['Tubes'])), data_1['Values'][-2:], yerr=std_dev_controls_1, fmt='none', ecolor='red', capsize=3, label='Controls')
+
+    ax1.legend()
+
+    # Create the scatter plot for the second set of data
+    ax2.scatter(range(len(data_2['Tubes'])), data_2['Values'], s=50)
+    ax2.set_xlabel('Tubes', fontsize=14)
+    ax2.set_ylabel('Free Fraction', fontsize=14)
+    ax2.set_title('Free Fraction - FF_MDL', fontsize=16)
+
+    ax2.text(4, 0.85, 'Controls', ha='center')
+    ax2.text(0, 0.2, 'Plasma', ha='center')
+    ax2.text(1, 0.2, 'Plasma', ha='center')
+    ax2.text(2, 0.2, 'Plasma', ha='center')
+    ax2.text(3, 0.2, 'Plasma', ha='center')
+
+    ax2.errorbar(range(len(data_2['Tubes']) - 2), data_2['Values'][:-2], yerr=std_dev_plasma_2, fmt='none', ecolor='green', capsize=3, label='Plasma')
+    ax2.errorbar(range(len(data_2['Tubes']) - 2, len(data_2['Tubes'])), data_2['Values'][-2:], yerr=std_dev_controls_2, fmt='none', ecolor='orange', capsize=3, label='Controls')
+
+    ax2.legend()
+
+    scatter_plot_filename = 'scatter_plots.png'
+    plt.savefig(scatter_plot_filename)
+
+    scatter_plot_image = Image(scatter_plot_filename)
+    workbook = writer.book
+    worksheet_1 = writer.sheets['FF_20221019_18FASEM']
+    worksheet_2 = writer.sheets['FF_MDL']
+    worksheet_1.add_image(scatter_plot_image, 'F5')
+    worksheet_2.add_image(scatter_plot_image, 'F5')
+
+plt.show()
 
 
 ##unit tests below
