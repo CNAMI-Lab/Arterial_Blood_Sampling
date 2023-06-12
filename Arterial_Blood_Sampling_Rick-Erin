@@ -1,0 +1,464 @@
+# Import Modules#
+import os
+import pandas as pd
+import numpy as np
+import seaborn as sns
+from datetime import datetime
+from tkinter import Tk
+from tkinter.filedialog import askopenfilename
+from tkinter import messagebox
+import statistics
+import xlrd
+import matplotlib.pyplot as plt
+from openpyxl.drawing.image import Image
+
+# Import Data#
+# Hardcode Reading
+# df = pd.read_excel(r"2022 04 01 ASEM Pl and WB and %intact parent.xlsx", sheet_name= 'Sheet1')
+# df_curve= pd.read_csv('040122ASEMcurve.csv')
+# df_timing = pd.read_excel('Sample_timing_sheet_0401.xlsx')
+
+# User Input Reading
+messagebox.showinfo("Information", "Select Counter Sheet")
+df_curve = pd.read_excel(askopenfilename())
+messagebox.showinfo("Information", "Select Timing Sheet")
+df_timing = pd.read_excel(askopenfilename())
+date = datetime.fromisoformat(input("Enter Date of Scan (YYYY-MM-DD):"))
+tracer = str(input("Enter Radiotracer (F-18):"))
+if "F-18" in tracer:
+    tracer_hl = 109.771
+elif "C-11" in tracer:
+    tracer_hl = 20.38
+
+# Data Cleaning#
+# Remove NaN
+df_timing = df_timing.dropna(axis=0, how='all')
+df_nan_trial = df_timing[df_timing.isnull().sum(axis=1) < 7]
+
+# Create Arrays
+array_trial = np.array(df_nan_trial)
+array_curve = np.array(df_curve)
+
+# Remove rows with unnecessary info
+dataframe_timepoint = pd.DataFrame(array_trial[min(np.where(array_trial == 'Sample')[0]):])
+dataframe_timepoint = dataframe_timepoint.rename(columns=dataframe_timepoint.iloc[0]).drop(dataframe_timepoint.index[0])
+dataframe_timepoint = dataframe_timepoint[pd.to_numeric(dataframe_timepoint['Sample'], errors='coerce').notnull()]
+
+dataframe_curve = pd.DataFrame(array_curve[min(np.where(array_curve == 'POS')[0]):])
+dataframe_curve = dataframe_curve.rename(columns=dataframe_curve.iloc[0]).drop(dataframe_curve.index[0])
+dataframe_curve = dataframe_curve.iloc[:, :5]
+
+# Add BARCODE
+blood_col = [col for col in dataframe_timepoint.columns if isinstance(col, str) and 'lood' in col]
+plasma_col = [col for col in dataframe_timepoint.columns if isinstance(col, str) and 'lasma' in col]
+if (len(blood_col) > 1):
+    blood_col = [match for match in blood_col if "GC" in match]
+if (len(plasma_col) > 1):
+    plasma_col = [match for match in plasma_col if "GC" in match]
+start_col = [col for col in dataframe_timepoint.columns if isinstance(col, str) and (r'Draw Time start') in col]
+finish_col = [col for col in dataframe_timepoint.columns if isinstance(col, str) and (r'Draw Time finish') in col]
+dataframe_curve['BARCODE  '] = ""
+dataframe_curve['Draw Start'] = ""
+dataframe_curve['Draw Finish'] = ""
+for i in range(dataframe_timepoint.shape[0]):
+    dataframe_curve['BARCODE  '][int(
+        np.where(dataframe_curve["POS"] == int(dataframe_timepoint[blood_col].iloc[i]))[0]) + 1] = "WB " + f"{i + 1:02}"
+    dataframe_curve['BARCODE  '][int(np.where(dataframe_curve["POS"] == int(dataframe_timepoint[plasma_col].iloc[i]))[
+                                         0]) + 1] = "PL " + f"{i + 1:02}"
+
+    dataframe_curve['Draw Start'][
+        int(np.where(dataframe_curve["POS"] == int(dataframe_timepoint[plasma_col].iloc[i]))[0]) + 1] = \
+        dataframe_timepoint[start_col].iloc[i]
+    dataframe_curve['Draw Finish'][
+        int(np.where(dataframe_curve["POS"] == int(dataframe_timepoint[plasma_col].iloc[i]))[0]) + 1] = \
+        dataframe_timepoint[finish_col].iloc[i]
+    dataframe_curve['Draw Start'][
+        int(np.where(dataframe_curve["POS"] == int(dataframe_timepoint[blood_col].iloc[i]))[0]) + 1] = \
+        dataframe_timepoint[start_col].iloc[i]
+    dataframe_curve['Draw Finish'][
+        int(np.where(dataframe_curve["POS"] == int(dataframe_timepoint[blood_col].iloc[i]))[0]) + 1] = \
+        dataframe_timepoint[finish_col].iloc[i]
+    # not sure if +1 works all the time
+
+# Remove Rct's if necessary
+recounts = dataframe_curve[dataframe_curve['BARCODE  '].str.contains('rct') == True]
+if len(recounts > 0):
+    recounts = pd.Series(recounts['BARCODE  '].str.slice(0, 5)).drop_duplicates(keep="first", inplace=False)
+    for i in recounts:
+        all_indices = dataframe_curve[dataframe_curve['BARCODE  '].str.contains(i) == True]['ELTIME']
+        max_index = pd.Series.idxmax(pd.to_numeric(all_indices))
+        all_indices = all_indices.drop(max_index)
+        dataframe_curve = dataframe_curve.drop(all_indices.index)
+
+# Collect trial start and finish times
+# finish_index = np.where(array_trial=='Finish inj (clock):')
+# finish_time = array_trial[finish_index[0],finish_index[1]+1][0]
+start_index = np.where(array_trial == 'Start Inj (clock):')  # is capital "I" going to be consistent
+if np.asarray(start_index).size == 0:
+    start_index = df_timing.columns.get_loc(
+        [col for col in df_timing.columns if isinstance(col, str) and 'Start Inj (clock):' in col][0])
+    start_time = df_timing.columns[start_index + 1]
+else:
+    start_time = array_trial[start_index[0], start_index[1] + 1][0]
+# add check that length of trial is plausible?
+
+# Determine duration
+gc_start_idx = list(np.where(df_timing == 'GC Start time:'))
+gc_start_idx[1] = gc_start_idx[1] + 1
+gc_start = df_nan_trial.iloc[gc_start_idx[0], gc_start_idx[1]]
+gc_start = datetime.time(datetime.strptime(pd.DataFrame.to_string(gc_start, header=None, index=None),
+                                           " %H:%M:%S"))  # this time needs to be consistent
+duration = datetime.combine(date.min, gc_start) - datetime.combine(date.min, start_time)
+minute = np.timedelta64(duration, 'm')
+durminutes = minute.astype('timedelta64[m]')
+duration_in_minutes = durminutes / np.timedelta64(1, 'm')
+
+# Background Correction#
+CHsheet = []
+CPMsheet = []
+BarcodeSheet = []
+PositionSheet = []
+
+# loop through CPM and find Background Noise
+Gamma_Counter_Sheet = np.array(dataframe_curve)
+for i in range(2, dataframe_curve.shape[0] - 2):
+    if Gamma_Counter_Sheet[i, 1] == 1 and (
+            int(Gamma_Counter_Sheet[i - 2, 2]) + int(Gamma_Counter_Sheet[i - 1, 2])) < 100 and (
+            int(Gamma_Counter_Sheet[i + 2, 2]) + int(Gamma_Counter_Sheet[i + 3, 2])) < 100 and (
+            int(Gamma_Counter_Sheet[i, 2]) + int(Gamma_Counter_Sheet[i + 1, 2])) < 100:
+        CPMsheet = np.concatenate((CPMsheet, Gamma_Counter_Sheet[i:i + 2, 2]))
+        CHsheet = np.concatenate((CHsheet, Gamma_Counter_Sheet[i:i + 2, 1]))
+        BarcodeSheet = np.concatenate((BarcodeSheet, Gamma_Counter_Sheet[i:i + 2, 5]))
+        PositionSheet = np.concatenate((PositionSheet, Gamma_Counter_Sheet[i:i + 2, 0]))
+len(PositionSheet)
+d = {'POS': PositionSheet, 'CH': CHsheet, 'CPM': CPMsheet, 'Barcode': BarcodeSheet}
+Background = pd.DataFrame(d)
+
+# calculate background value
+bkg_value = 2 * (sum(pd.to_numeric(Background['CPM'])) / len(Background))
+
+# calculate avg_act_per_act_left
+sc = 0
+al = 0
+if len([i for i, x in enumerate(df_curve.apply(lambda row: row.astype(str).str.contains(r'(?i)NIST').any(), axis=1)) if
+        x]) > 0:
+    std_idx_n = \
+        [i for i, x in enumerate(df_curve.apply(lambda row: row.astype(str).str.contains(r'(?i)NIST').any(), axis=1)) if
+         x][
+            0]
+    sc += 1
+    n_standard = int(df_curve.iloc[std_idx_n, 2]) + int(df_curve.iloc[std_idx_n + 1, 2]) - bkg_value
+    n_std_date = datetime(2021, 11, 10)  # replace hard code with lookup/input
+    n_std_activity = 0.111  # replace hard code with lookup/input
+    n_std_time_elapsed = date - n_std_date
+    n_std_time_elapsed = n_std_time_elapsed.days
+    n_activity_left = (n_std_activity) * (2 ** (-(n_std_time_elapsed) / 270.8))
+    act_per_act_left_n = n_standard / n_activity_left
+    al += act_per_act_left_n
+
+if len([i for i, x in enumerate(df_curve.apply(lambda row: row.astype(str).str.contains(r'(?i)CCIR').any(), axis=1)) if
+        x]) > 0:
+    std_idx_c = \
+        [i for i, x in enumerate(df_curve.apply(lambda row: row.astype(str).str.contains(r'(?i)CCIR').any(), axis=1)) if
+         x][
+            0]
+    sc += 1
+    c_standard = int(df_curve.iloc[std_idx_c, 2]) + int(df_curve.iloc[std_idx_c + 1, 2]) - bkg_value
+    c_std_date = datetime(2022, 2, 1)  # replace hard code with lookup/input
+    c_std_activity = 0.1052  # replace hard code with lookup/input
+    c_std_time_elapsed = date - c_std_date
+    c_std_time_elapsed = c_std_time_elapsed.days
+    c_activity_left = (c_std_activity) * (2 ** (-(c_std_time_elapsed) / 270.8))
+    act_per_act_left_c = c_standard / c_activity_left
+    al += act_per_act_left_c
+
+# if len([i for i, x in enumerate(df_curve.apply(lambda row: row.astype(str).str.contains(r'(?i)old').any(), axis=1)) if x]) > 0:
+#  std_idx_o = [i for i, x in enumerate(df_curve.apply(lambda row: row.astype(str).str.contains(r'(?i)old').any(), axis=1)) if x][0]
+#  sc += 1
+#  old_standard = int(df_curve.iloc[std_idx_o,2] ) + int(df_curve.iloc[std_idx_o+1,2] )-bkg_value
+#  old_std_date = datetime(2020,3,13) #replace hard code with lookup/input
+#  old_std_activity = 0.141 #replace hard code with lookup/input
+#  old_std_time_elapsed = date - old_std_date
+#  old_std_time_elapsed = old_std_time_elapsed.days
+#  old_activity_left = (old_std_activity)*(2**(-(old_std_time_elapsed)/270.8))
+#  act_per_act_left_old = old_standard/old_activity_left
+#  al += act_per_act_left_old
+
+avg_act_per_act_left = al / sc  # add check that the date isn't more than 271 days old and that value isn't far from 720,000
+
+# calculate muCi
+muCi_calculator_FINAL_sheet = []
+muCi_FINAL_sheet = []
+BarcodeSheet = []
+PositionSheet = []
+CH_Sheet = []
+CPM_Sheet = []
+kBq_Sheet = []
+start_time_Sheet = []
+stop_time_Sheet = []
+
+for i in range(0, Gamma_Counter_Sheet.shape[0] - 1):
+    if Gamma_Counter_Sheet[i, 1] == 1:
+        muci_calculator = (int(Gamma_Counter_Sheet[i, 2]) + int(Gamma_Counter_Sheet[i + 1, 2]) - bkg_value) * (
+                2 ** ((duration_in_minutes + float(Gamma_Counter_Sheet[i, 4])) / tracer_hl))
+        muci = muci_calculator / avg_act_per_act_left
+        if 'PL' in Gamma_Counter_Sheet[i, 5]:
+            muci = muci / 0.4
+        kBq = muci * 37
+        kBq_Sheet.append(kBq)
+        if isinstance(Gamma_Counter_Sheet[i, 6], pd.Series):
+            start_time_Sheet.append(Gamma_Counter_Sheet[i, 6][0])
+            stop_time_Sheet.append(Gamma_Counter_Sheet[i, 7][0])
+        else:
+            start_time_Sheet.append(Gamma_Counter_Sheet[i, 6])
+            stop_time_Sheet.append(Gamma_Counter_Sheet[i, 7])
+        muCi_calculator_FINAL_sheet.append(muci_calculator)
+        muCi_FINAL_sheet.append(muci)
+        CH_Sheet.append(Gamma_Counter_Sheet[i:i + 1, 1])
+        BarcodeSheet.append(Gamma_Counter_Sheet[i, 5])
+        PositionSheet.append(Gamma_Counter_Sheet[i, 0])
+        CPM_Sheet.append(Gamma_Counter_Sheet[i:i + 1, 2])
+
+d_final = {'POS': PositionSheet, 'Barcode': BarcodeSheet, 'draw start': start_time_Sheet,
+           'draw finish': stop_time_Sheet, 'muci-calculator': muCi_calculator_FINAL_sheet, 'muci ': muCi_FINAL_sheet,
+           'kBq': kBq_Sheet}
+final_calculation = pd.DataFrame(d_final)
+final_calculation = final_calculation.iloc[[i for i, x in enumerate(
+    final_calculation.apply(lambda row: row.astype(str).str.contains(r'[a-zA-Z]{2} \d{2}').any(), axis=1)) if x],]
+final_calculation = final_calculation.sort_values(by='Barcode')
+pd.DataFrame(final_calculation).to_csv(str(str(date)[:10] + '_Final Calculation.csv'), index=False)
+
+# Free Fraction Calculation
+tubes = ['A', 'B', 'C', 'D', 'E', 'F']
+sample_positions = {}  # user must manually input tube positions
+valid_input = False
+
+while not valid_input:
+    try:
+        sample_positions['A'] = list(map(int, input("Enter sample positions for A (space-separated): ").split()))
+        sample_positions['B'] = list(map(int, input("Enter sample positions for B (space-separated): ").split()))
+        sample_positions['C'] = list(map(int, input("Enter sample positions for C (space-separated): ").split()))
+        sample_positions['D'] = list(map(int, input("Enter sample positions for D (space-separated): ").split()))
+        sample_positions['E'] = list(map(int, input("Enter sample positions for E (space-separated): ").split()))
+        sample_positions['F'] = list(map(int, input("Enter sample positions for F (space-separated): ").split()))
+        valid_input = True
+    except ValueError:
+        print("Invalid input format. Please enter space-separated integers.")
+
+# hard code, sample_positions format
+#     sample_positions = {
+#         'A': [109, 110, 111],
+#         'B': [113, 114, 115],
+#         'C': [117, 118, 119],
+#         'D': [121, 122, 123],
+#         'E': [125, 126, 127],
+#         'F': [129, 130, 131]
+
+# parse values for free fraction samples
+df = pd.read_excel(df_curve, skiprows=20)  # if gamma counter sheet is same as above
+
+sample_values = {}
+
+for tube, positions in sample_positions.items():
+    # print(f"Tube: {tube}")
+    tube_sample_values = {}
+    for position in positions:
+        # print(f"Position: {position}")
+        current_row = df[(df['POS'] == position) & (df['CH'] == 1)]
+        next_row_empty = df['POS'].shift(-1).loc[current_row.index].isna().item()
+
+        cpm1 = current_row['CPM'].values[0] if not current_row.empty else None
+        eltime = current_row['ELTIME  '].values[0] if not current_row.empty else None
+
+        if next_row_empty:
+            next_row_cpm2 = df['CPM'].shift(-1).loc[current_row.index].dropna()
+            if not next_row_cpm2.empty:
+                cpm2 = next_row_cpm2.values[0]
+
+        tube_sample_values[position] = {
+            'CPM1': cpm1,
+            'CPM2': cpm2,
+            'ELTIME': eltime
+        }
+
+    sample_values[tube] = tube_sample_values
+
+# calculate columnf
+tube_results = {}
+
+for tube, tube_sample_values in parsed_values.items():
+    tube_results[tube] = {}
+    for position, values in tube_sample_values.items():
+        cpm1 = values['CPM1']
+        cpm2 = values['CPM2']
+        eltime = values['ELTIME']
+
+        calculation = (cpm1 + cpm2 - bkg_value) * 2 ** eltime / bkg_value
+        tube_results[tube][position] = calculation
+
+# calculate free fraction
+final_results = {}
+
+for tube, positions in sample_positions.items():
+    tube_results = columnf_calc()[tube]
+
+    calculation_values = []
+    for position in positions:
+        if position in tube_results:
+            calculation_values.append(tube_results[position])
+        else:
+            calculation_values.append(0)  # If position is missing, assume value of 0
+
+    c_aliquot, c_remainder, c_top = calculation_values
+    print("Tube:", tube, "Aliquot:", c_aliquot, "Remainder:", c_remainder, "Top:", c_top)
+
+    if tube == list(sample_positions.keys())[0]:
+        final_calculation = result = (c_aliquot / 0.15) / ((c_aliquot + c_remainder + c_top) / 0.5)
+
+    else:
+        final_calculation = result = (c_aliquot / 0.15) / ((c_aliquot + c_remainder + c_top) / 0.4)
+
+    final_results[tube] = final_calculation
+
+# calculate average and stdev (saline and plasma calculated separately)
+results_values = list(final_results.values())[:4]
+saline = list(final_results.values())[-2:]
+
+average = statistics.mean(results_values)
+std_dev = statistics.stdev(results_values)
+saline_average = statistics.mean(saline)
+saline_std = statistics.stdev(saline)
+
+print("Average:", average, "Standard Deviation:", std_dev, "Saline Average: ", saline_average, "Saline StDev: ",
+      saline_std)
+
+# create boxplot and save to Excel sheet
+final_results_1 = {
+    'A': 0.049870728512930146,
+    'B': 0.04213991024940731,
+    'C': 0.049001855069462516,
+    'D': 0.0453538823156846,
+    'E': 0.8378413782929937,
+    'F': 0.8754842529450337
+}  # ASEM
+
+final_results_2 = {
+    'A': 0.3357582116707509,
+    'B': 0.28148167731241813,
+    'C': 0.29550856039431306,
+    'D': 0.3099990954690565,
+    'E': 0.8778051288501841,
+    'F': 0.8837126248542743
+}  # MDL for comparison, can comment out when no longer needed
+
+# Calculate averages and standard deviations for the first set of data
+results_values_1 = list(final_results_1.values())
+averages_plasma_1 = statistics.mean(results_values_1[:4])
+std_dev_plasma_1 = statistics.stdev(results_values_1[:4])
+averages_controls_1 = statistics.mean(results_values_1[-2:])
+std_dev_controls_1 = statistics.stdev(results_values_1[-2:])
+
+# Calculate averages and standard deviations for the second set of data
+results_values_2 = list(final_results_2.values())
+averages_plasma_2 = statistics.mean(results_values_2[:4])
+std_dev_plasma_2 = statistics.stdev(results_values_2[:4])
+averages_controls_2 = statistics.mean(results_values_2[-2:])
+std_dev_controls_2 = statistics.stdev(results_values_2[-2:])
+
+data_1 = {
+    'Tubes': list(final_results_1.keys()),
+    'Values': results_values_1,
+}
+df_1 = pd.DataFrame(data_1)
+
+data_2 = {
+    'Tubes': list(final_results_2.keys()),
+    'Values': results_values_2,
+}
+df_2 = pd.DataFrame(data_2)
+
+data_3 = {
+    'Tubes': list(final_results.keys()),
+    'Values': results_values,
+}
+df_3 = pd.DataFrame(data_3)
+
+excel_filename = f'FinalFF_{date}_{tracer}.xlsx'
+with pd.ExcelWriter(excel_filename, engine='openpyxl') as writer:
+    df_1.to_excel(writer, index=False, sheet_name='FF_20221019_18FASEM')
+    df_2.to_excel(writer, index=False, sheet_name='FF_MDL')
+    df_3.to_excel(writer, index=False, sheet_name=f'FF_{date}_{tracer}')
+
+    # Create the scatter plot for the first set of data
+    fig, (ax1, ax2, ax3) = plt.subplots(3, figsize=(8, 18))
+
+    ax1.scatter(data_1['Tubes'], data_1['Values'], s=50)
+    ax1.set_xlabel('Tube Labels', fontsize=14)
+    ax1.set_xticklabels(data_1['Tubes'])
+    ax1.set_ylabel('Free Fraction', fontsize=14)
+    ax1.set_title('Free Fraction - FF_20221019_18FASEM', fontsize=16)
+
+    ax1.text(4, 0.85, 'Controls', ha='center')
+    ax1.text(0, 0.2, 'Plasma', ha='center')
+    ax1.text(1, 0.2, 'Plasma', ha='center')
+    ax1.text(2, 0.2, 'Plasma', ha='center')
+    ax1.text(3, 0.2, 'Plasma', ha='center')
+
+    ax1.errorbar(range(len(data_1['Tubes']) - 2), data_1['Values'][:-2], yerr=std_dev_plasma_1, fmt='none',
+                 ecolor='red', capsize=3, label='Plasma')
+    ax1.errorbar(range(len(data_1['Tubes']) - 2, len(data_1['Tubes'])), data_1['Values'][-2:],
+                 yerr=std_dev_controls_1, fmt='none', ecolor='red', capsize=3, label='Controls')
+
+    ax1.legend()
+
+    # Create the scatter plot for the second set of data
+    ax2.scatter(data_2['Tubes'], data_2['Values'], s=50)
+    ax2.set_xlabel('Tube Labels', fontsize=14)
+    ax2.set_xticklabels(data_2['Tubes'])
+    ax2.set_ylabel('Free Fraction', fontsize=14)
+    ax2.set_title('Free Fraction - FF_MDL', fontsize=16)
+
+    ax2.text(0, data_2['Values'][0] + 0.03, 'Plasma', ha='center')
+    ax2.text(1, data_2['Values'][1] + 0.03, 'Plasma', ha='center')
+    ax2.text(2, data_2['Values'][2] + 0.03, 'Plasma', ha='center')
+    ax2.text(3, data_2['Values'][3] + 0.03, 'Plasma', ha='center')
+
+    ax2.errorbar(range(len(data_2['Tubes']) - 2), data_2['Values'][:-2], yerr=std_dev_plasma_2, fmt='none',
+                 ecolor='green', capsize=3, label='Plasma')
+    ax2.errorbar(range(len(data_2['Tubes']) - 2, len(data_2['Tubes'])), data_2['Values'][-2:],
+                 yerr=std_dev_controls_2, fmt='none', ecolor='orange', capsize=3, label='Controls')
+
+    ax2.legend()
+
+    # Create the scatter plot for the third set of data
+    ax3.scatter(data_3['Tubes'], data_3['Values'], s=50)
+    ax3.set_xlabel('Tube Labels', fontsize=14)
+    ax3.set_xticklabels(data_3['Tubes'])
+    ax3.set_ylabel('Free Fraction', fontsize=14)
+    ax3.set_title(f'FF_{tracer}_{date}', fontsize=16)
+
+    ax3.text(0, data_3['Values'][0] + 0.03, 'Plasma', ha='center')
+    ax3.text(1, data_3['Values'][1] + 0.03, 'Plasma', ha='center')
+    ax3.text(2, data_3['Values'][2] + 0.03, 'Plasma', ha='center')
+    ax3.text(3, data_3['Values'][3] + 0.03, 'Plasma', ha='center')
+
+    ax3.errorbar(range(len(data_3['Tubes']) - 2), data_3['Values'][:-2], yerr=std_dev_plasma_3, fmt='none',
+                 ecolor='blue', capsize=3, label='Plasma')
+    ax3.errorbar(range(len(data_3['Tubes']) - 2, len(data_3['Tubes'])), data_3['Values'][-2:],
+                 yerr=std_dev_controls_3, fmt='none', ecolor='purple', capsize=3, label='Controls')
+
+    ax3.legend()
+
+    scatter_plot_filename = f'{date}_{tracer}_scatter_plots.png'
+    plt.savefig(scatter_plot_filename)
+
+    scatter_plot_image = Image(scatter_plot_filename)
+    workbook = writer.book
+    worksheet_1 = writer.sheets[f'FF_{date}_{tracer}']
+    worksheet_2 = writer.sheets['FF_20221019_18FASEM']
+    worksheet_3 = writer.sheets['FF_MDL']
+    worksheet_1.add_image(scatter_plot_image, 'F5')
+    worksheet_2.add_image(scatter_plot_image, 'F5')
+    worksheet_3.add_image(scatter_plot_image, 'F5')
+
+plt.show()
