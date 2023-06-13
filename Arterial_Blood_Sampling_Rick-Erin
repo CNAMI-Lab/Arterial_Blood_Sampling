@@ -18,17 +18,38 @@ from openpyxl.drawing.image import Image
 # df_curve= pd.read_csv('040122ASEMcurve.csv')
 # df_timing = pd.read_excel('Sample_timing_sheet_0401.xlsx')
 
-# User Input Reading
-messagebox.showinfo("Information", "Select Counter Sheet")
-df_curve = pd.read_excel(askopenfilename())
-messagebox.showinfo("Information", "Select Timing Sheet")
-df_timing = pd.read_excel(askopenfilename())
-date = datetime.fromisoformat(input("Enter Date of Scan (YYYY-MM-DD):"))
+# automated inport
+# gamma counter sheet: "TRACER_timings_GC_pos_YEAR_MO_DAY.xlsx"
+# timing sheet: "YEAR.MO.DAY.TRACER.xlsx"
 tracer = str(input("Enter Radiotracer (F-18):"))
 if "F-18" in tracer:
     tracer_hl = 109.771
 elif "C-11" in tracer:
     tracer_hl = 20.38
+
+timing_sheet_name = f"{tracer}_timings_GC_pos_????_??_??.xlsx"
+df_timing = pd.DataFrame(glob.glob(timing_sheet_name))
+
+filename_parts = file.split("_")
+year = filename_parts[-3]
+month = filename_parts[-2]
+day = filename_parts[-1].split(".")[0]
+date = {year}-{month}-{day}
+
+gc_sheet_name = f"????.??.??.{tracer}.xlsx"
+df_curve = pd.DataFrame(glob.glob(gc_sheet_name))
+
+# User Input Reading
+# messagebox.showinfo("Information", "Select Counter Sheet")
+# df_curve = pd.read_excel(askopenfilename())
+# messagebox.showinfo("Information", "Select Timing Sheet")
+# df_timing = pd.read_excel(askopenfilename())
+# date = datetime.fromisoformat(input("Enter Date of Scan (YYYY-MM-DD):"))
+# tracer = str(input("Enter Radiotracer (F-18):"))
+# if "F-18" in tracer:
+#     tracer_hl = 109.771
+# elif "C-11" in tracer:
+#     tracer_hl = 20.38
 
 # Data Cleaning#
 # Remove NaN
