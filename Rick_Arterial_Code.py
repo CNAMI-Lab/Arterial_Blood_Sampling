@@ -32,8 +32,8 @@ def dataClean(scan):
     df_curve = scan.df_curve
     df_timing = scan.df_timing
 
-    df_timing = df_timing.dropna(axis=0, how ='all')
-    df_nan_trial  = df_timing[df_timing.isnull().sum(axis=1) <7]
+    df_timing = df_timing.dropna(axis=0, how ='all') #not sure if necessary
+    df_nan_trial  = df_timing[df_timing.isnull().sum(axis=1) <7] #not sure if necessary
 
     #Create Arrays
     array_trial = np.array(df_nan_trial)
@@ -98,6 +98,8 @@ def collectTimes(scan):
         start_time = scan.df_timing.columns[start_index+1]
     else:
         start_time = scan.array_trial[start_index[0],start_index[1]+1][0]
+    if isinstance(start_time, datetime):
+        start_time = start_time.time()
     scan.start_time = start_time
     return scan
     #add check that length of trial is plausible?
@@ -269,21 +271,33 @@ def correctMetabolites(hdf,tracer_hl,tracer_name):
     Flow2 = 2
     if tracer_name == "ASEM":
         Flow2 = 1.5
+    elif tracer_name == "MK6240":
+        Flow2 = 1.7
     elif tracer_name == "RO948":
         Flow2 = 1.3
-    in_vitro_column = hdf["Name"].str.contains("in vitro")
+    in_vitro_column = hdf["Name"].str.contains(r'\b0 min\b|in vitro')
     dose_column = hdf["Name"].str.contains("dose")
     hdf.replace('n.a.', np.nan, inplace=True)
     hdf["Flow 1"] = hdf["Area 1"]*Flow1*2**(hdf["RT 1"]/tracer_hl)
     hdf["Flow 2"] = hdf["Area 2"]*Flow2*2**(hdf["RT 2"]/tracer_hl)
     hdf["Flow 3"] = hdf["Area 3"]*Flow2*2**(hdf["RT 3"]/tracer_hl)
-    hdf["Flow Sum"] = hdf["Flow 1"] + hdf["Flow 2"] + hdf["Flow 3"]
-    hdf["Non-Loss Corrected"] = hdf["Flow 3"]/hdf["Flow Sum"]
+    hdf["Flow Sum"] = np.nan
+    hdf["Non-Loss Corrected"] = np.nan
+    for i in range(hdf.shape[0]):
+        if np.isnan(hdf["Flow 3"].iloc[i]):
+            hdf["Flow Sum"].iloc[i] = hdf["Flow 1"].iloc[i] + hdf["Flow 2"].iloc[i]
+            hdf["Non-Loss Corrected"].iloc[i] = hdf["Flow 2"].iloc[i]/hdf["Flow Sum"].iloc[i]
+        else:
+            hdf["Flow Sum"].iloc[i] = hdf["Flow 1"].iloc[i] + hdf["Flow 2"].iloc[i] + hdf["Flow 3"].iloc[i]
+            hdf["Non-Loss Corrected"].iloc[i] = hdf["Flow 3"].iloc[i]/hdf["Flow Sum"].iloc[i]
     #check if hdf["Non-Loss Corrected"][dose_column] is NaN
     hdf["Non-Loss Corrected"] = hdf["Non-Loss Corrected"].astype(float)
     if np.isnan(hdf["Non-Loss Corrected"][dose_column]).any():
         hdf["Non-Loss Corrected"][dose_column] = 1
-    Correction_Factor = float(hdf["Non-Loss Corrected"][dose_column])/float(hdf["Non-Loss Corrected"][in_vitro_column])
+    if isinstance(in_vitro_column, pd.Series):
+        Correction_Factor = 1
+    else:
+        Correction_Factor = float(hdf["Non-Loss Corrected"][dose_column])/float(hdf["Non-Loss Corrected"][in_vitro_column])
     hdf["Percent_Intact"] = hdf["Non-Loss Corrected"]*Correction_Factor
     return hdf
 
