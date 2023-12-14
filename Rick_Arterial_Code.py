@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import seaborn as sns
 from datetime import datetime
+from datetime import time
 from tkinter import Tk   
 from tkinter.filedialog import askopenfilename
 from tkinter import messagebox
@@ -32,21 +33,21 @@ def dataClean(scan):
     df_curve = scan.df_curve
     df_timing = scan.df_timing
 
-    df_timing = df_timing.dropna(axis=0, how ='all')
-    df_nan_trial  = df_timing[df_timing.isnull().sum(axis=1) <7]
+    df_timing = df_timing.dropna(axis=0, how ='all') #not sure if necessary
+    df_nan_trial  = df_timing[df_timing.isnull().sum(axis=1) <7] #not sure if necessary
 
     #Create Arrays
     array_trial = np.array(df_nan_trial)
     array_curve = np.array(df_curve)
 
     #Remove rows with unnecessary info
-    dataframe_timepoint = pd.DataFrame(array_trial[min(np.where(array_trial=='Sample')[0]):])
-    dataframe_timepoint = dataframe_timepoint.rename(columns= dataframe_timepoint.iloc[0]).drop(dataframe_timepoint.index[0])
-    dataframe_timepoint = dataframe_timepoint[pd.to_numeric(dataframe_timepoint['Sample'], errors='coerce').notnull()]  
+    dataframe_timepoint = pd.DataFrame(array_trial[min(np.where(array_trial=='Sample')[0]):]) #removes all rows before "Sample"
+    dataframe_timepoint = dataframe_timepoint.rename(columns= dataframe_timepoint.iloc[0]).drop(dataframe_timepoint.index[0]) #sets column names to first row and drops first row
+    dataframe_timepoint = dataframe_timepoint[pd.to_numeric(dataframe_timepoint['Sample'], errors='coerce').notnull()]   #removes all rows that don't have a number in the "Sample" column
 
-    dataframe_curve = pd.DataFrame(array_curve[min(np.where(array_curve=='POS')[0]):]) 
-    dataframe_curve = dataframe_curve.rename(columns=dataframe_curve.iloc[0]).drop(dataframe_curve.index[0])
-    dataframe_curve = dataframe_curve.iloc[:,:5]
+    dataframe_curve = pd.DataFrame(array_curve[min(np.where(array_curve=='POS')[0]):]) #removes all rows before "POS"
+    dataframe_curve = dataframe_curve.rename(columns=dataframe_curve.iloc[0]).drop(dataframe_curve.index[0]) #sets column names to first row and drops first row
+    #dataframe_curve = dataframe_curve.iloc[:,:5] #removes all columns after "CPM"
 
     #Add BARCODE
     blood_col = [col for col in dataframe_timepoint.columns if isinstance(col, str) and 'lood' in col]
@@ -57,18 +58,44 @@ def dataClean(scan):
         plasma_col = [match for match in plasma_col if "GC" in match]
     start_col = [col for col in dataframe_timepoint.columns if isinstance(col, str) and (r'start') in col]
     finish_col = [col for col in dataframe_timepoint.columns if isinstance(col, str) and (r'finish') in col]
+    #if dataframe_timepoint's blood_col contains a number then run this code
+    #if any(char.isdigit() for value in dataframe_timepoint[blood_col] for char in str(value)):
     dataframe_curve['BARCODE  '] = ""
     dataframe_curve['Draw Start'] = ""
     dataframe_curve['Draw Finish'] = ""
+    barcode_col_idx = dataframe_curve.columns.get_loc([col for col in dataframe_curve.columns if isinstance(col, str) and 'BARCODE' in col][0])
     for i in range(dataframe_timepoint.shape[0]):
-        dataframe_curve['BARCODE  '][int(np.where(dataframe_curve["POS"].astype('float32')==int(dataframe_timepoint[blood_col].iloc[i]))[0])+1] = "WB " + f"{i+1:02}" 
-        dataframe_curve['BARCODE  '][int(np.where(dataframe_curve["POS"].astype('float32')==int(last_numbers(dataframe_timepoint[plasma_col].iloc[i][-1])))[0])+1] = "PL " + f"{i+1:02}" 
+            # dataframe_curve['BARCODE  '][int(np.where(dataframe_curve["POS"].astype('float32')==int(dataframe_timepoint[blood_col].iloc[i]))[0])+1] = "WB " + f"{i+1:02}" 
+            # dataframe_curve['BARCODE  '][int(np.where(dataframe_curve["POS"].astype('float32')==int(last_numbers(dataframe_timepoint[plasma_col].iloc[i][-1])))[0])+1] = "PL " + f"{i+1:02}" 
+            
+            # dataframe_curve['Draw Start'][int(np.where(dataframe_curve["POS"].astype('float32')==int(last_numbers(dataframe_timepoint[plasma_col].iloc[i][-1])))[0])+1] =  dataframe_timepoint[start_col].iloc[i]
+            # dataframe_curve['Draw Finish'][int(np.where(dataframe_curve["POS"].astype('float32')==int(last_numbers(dataframe_timepoint[plasma_col].iloc[i][-1])))[0])+1] = dataframe_timepoint[finish_col].iloc[i]
+            # dataframe_curve['Draw Start'][int(np.where(dataframe_curve["POS"].astype('float32')==int(dataframe_timepoint[blood_col].iloc[i]))[0])+1] =  dataframe_timepoint[start_col].iloc[i]
+            # dataframe_curve['Draw Finish'][int(np.where(dataframe_curve["POS"].astype('float32')==int(dataframe_timepoint[blood_col].iloc[i]))[0])+1] = dataframe_timepoint[finish_col].iloc[i]
+            #not sure if +1 works all the time
+            dataframe_curve.iloc[int(np.where(dataframe_curve["POS"].astype('float32')==int(dataframe_timepoint[blood_col].iloc[i]))[0]),barcode_col_idx] = "WB " + f"{i+1:02}" 
+            dataframe_curve.iloc[int(np.where(dataframe_curve["POS"].astype('float32')==int(last_numbers(dataframe_timepoint[plasma_col].iloc[i][0])))[0]),barcode_col_idx] = "PL " + f"{i+1:02}" 
+            if isinstance(dataframe_timepoint[start_col].iloc[i][0], time):
+                dataframe_curve.iloc[int(np.where(dataframe_curve["POS"].astype('float32')==int(dataframe_timepoint[blood_col].iloc[i]))[0]),barcode_col_idx+1] =  datetime.time(datetime.strptime(''.join(dataframe_timepoint[start_col].iloc[i].astype(str)), "%H:%M:%S"))
+                dataframe_curve.iloc[int(np.where(dataframe_curve["POS"].astype('float32')==int(dataframe_timepoint[blood_col].iloc[i]))[0]),barcode_col_idx+2] =  datetime.time(datetime.strptime(''.join(dataframe_timepoint[finish_col].iloc[i].astype(str)), "%H:%M:%S"))
+                dataframe_curve.iloc[int(np.where(dataframe_curve["POS"].astype('float32')==int(last_numbers(dataframe_timepoint[plasma_col].iloc[i][0])))[0]),barcode_col_idx+1] =  datetime.time(datetime.strptime(''.join(dataframe_timepoint[start_col].iloc[i].astype(str)), "%H:%M:%S"))
+                dataframe_curve.iloc[int(np.where(dataframe_curve["POS"].astype('float32')==int(last_numbers(dataframe_timepoint[plasma_col].iloc[i][0])))[0]),barcode_col_idx+2] =  datetime.time(datetime.strptime(''.join(dataframe_timepoint[finish_col].iloc[i].astype(str)), "%H:%M:%S"))
+            else:
+                dataframe_curve.iloc[int(np.where(dataframe_curve["POS"].astype('float32')==int(dataframe_timepoint[blood_col].iloc[i]))[0]),barcode_col_idx+1] =  datetime.time(datetime.strptime(''.join(dataframe_timepoint[start_col].iloc[i].astype(str)), "%Y-%m-%d %H:%M:%S"))
+                dataframe_curve.iloc[int(np.where(dataframe_curve["POS"].astype('float32')==int(dataframe_timepoint[blood_col].iloc[i]))[0]),barcode_col_idx+2] =  datetime.time(datetime.strptime(''.join(dataframe_timepoint[finish_col].iloc[i].astype(str)), "%Y-%m-%d %H:%M:%S"))
+                dataframe_curve.iloc[int(np.where(dataframe_curve["POS"].astype('float32')==int(dataframe_timepoint[plasma_col].iloc[i]))[0]),barcode_col_idx+1] =  datetime.time(datetime.strptime(''.join(dataframe_timepoint[start_col].iloc[i].astype(str)), "%Y-%m-%d %H:%M:%S"))
+                dataframe_curve.iloc[int(np.where(dataframe_curve["POS"].astype('float32')==int(dataframe_timepoint[plasma_col].iloc[i]))[0]),barcode_col_idx+2] =  datetime.time(datetime.strptime(''.join(dataframe_timepoint[finish_col].iloc[i].astype(str)), "%Y-%m-%d %H:%M:%S"))
+
+    # else:
+    #     dataframe_curve.columns.values[6] = 'BARCODE  '
+    #     dataframe_curve['Draw Start'] = ""
+    #     dataframe_curve['Draw Finish'] = ""
+    #     for i in range(dataframe_timepoint.shape[0]):
+    #         dataframe_curve.iloc[np.where(dataframe_curve['BARCODE  '].str.contains(f"WB {i+1:02}") & dataframe_curve['BARCODE  '].notna())[0][0],8] =  datetime.time(datetime.strptime(''.join(dataframe_timepoint[start_col].iloc[i].astype(str)), "%Y-%m-%d %H:%M:%S"))
+    #         dataframe_curve.iloc[np.where(dataframe_curve['BARCODE  '].str.contains(f"WB {i+1:02}") & dataframe_curve['BARCODE  '].notna())[0][0],9] =  datetime.time(datetime.strptime(''.join(dataframe_timepoint[finish_col].iloc[i].astype(str)), "%Y-%m-%d %H:%M:%S"))
+    #         dataframe_curve.iloc[np.where(dataframe_curve['BARCODE  '].str.contains(f"PL {i+1:02}") & dataframe_curve['BARCODE  '].notna())[0][0],8] =  datetime.time(datetime.strptime(''.join(dataframe_timepoint[start_col].iloc[i].astype(str)), "%Y-%m-%d %H:%M:%S"))
+    #         dataframe_curve.iloc[np.where(dataframe_curve['BARCODE  '].str.contains(f"PL {i+1:02}") & dataframe_curve['BARCODE  '].notna())[0][0],9] =  datetime.time(datetime.strptime(''.join(dataframe_timepoint[finish_col].iloc[i].astype(str)), "%Y-%m-%d %H:%M:%S"))
         
-        dataframe_curve['Draw Start'][int(np.where(dataframe_curve["POS"].astype('float32')==int(last_numbers(dataframe_timepoint[plasma_col].iloc[i][-1])))[0])+1] =  dataframe_timepoint[start_col].iloc[i]
-        dataframe_curve['Draw Finish'][int(np.where(dataframe_curve["POS"].astype('float32')==int(last_numbers(dataframe_timepoint[plasma_col].iloc[i][-1])))[0])+1] = dataframe_timepoint[finish_col].iloc[i]
-        dataframe_curve['Draw Start'][int(np.where(dataframe_curve["POS"].astype('float32')==int(dataframe_timepoint[blood_col].iloc[i]))[0])+1] =  dataframe_timepoint[start_col].iloc[i]
-        dataframe_curve['Draw Finish'][int(np.where(dataframe_curve["POS"].astype('float32')==int(dataframe_timepoint[blood_col].iloc[i]))[0])+1] = dataframe_timepoint[finish_col].iloc[i]
-        #not sure if +1 works all the time
 
     #Remove Rct's if necessary
     recounts = dataframe_curve[dataframe_curve['BARCODE  '].str.contains('rct')==True]
@@ -85,6 +112,7 @@ def dataClean(scan):
     scan.array_trial = array_trial
     scan.df_timing = df_timing
     scan.df_nan_trial = df_nan_trial
+    scan.barcode_col_idx = barcode_col_idx
 
     return scan
 
@@ -98,15 +126,27 @@ def collectTimes(scan):
         start_time = scan.df_timing.columns[start_index+1]
     else:
         start_time = scan.array_trial[start_index[0],start_index[1]+1][0]
+    if isinstance(start_time, datetime):
+        start_time = start_time.time()
     scan.start_time = start_time
     return scan
     #add check that length of trial is plausible?
 
 def determineDuration(scan):
-    gc_start_idx = list(np.where(scan.df_timing=='GC Start time:'))
-    gc_start_idx[1] = gc_start_idx[1]+1
-    gc_start = scan.df_nan_trial.iloc[gc_start_idx[0],gc_start_idx[1]]
-    gc_start = datetime.time(datetime.strptime(pd.DataFrame.to_string(gc_start, header=None, index=None)," %H:%M:%S")) # this time needs to be consistent
+    gc_start_col = [col for col in scan.df_curve.columns if isinstance(col, str) and 'CCIR' in col]
+    gc_start = 0
+    for index, value in scan.df_curve[gc_start_col].items():
+        for element in value:
+            if isinstance(element, time):
+                gc_start = element
+                break
+    #if gc_start is a pd.Series then convert to datetime.time
+    if isinstance(gc_start, pd.Series):
+        gc_start = datetime.time(datetime.strptime(''.join(gc_start.astype(str)),"%H:%M:%S")) # this time needs to be consistent
+    if gc_start == 0:
+        gc_start_idx = list(np.where(scan.df_timing=='GC Start time:'))
+        gc_start_idx[1] = gc_start_idx[1]+1
+        gc_start = scan.df_nan_trial.iloc[gc_start_idx[0],gc_start_idx[1]].iloc[0,0]
     duration = datetime.combine(scan.date.min, gc_start) - datetime.combine(scan.date.min, scan.start_time)
     minute = np.timedelta64(duration, 'm')
     durminutes = minute.astype('timedelta64[m]')
@@ -173,8 +213,10 @@ def calculateAvgActLeft(scan):
     #  old_activity_left = (old_std_activity)*(2**(-(old_std_time_elapsed)/270.8))
     #  act_per_act_left_old = old_standard/old_activity_left
     #  al += act_per_act_left_old
-
-    scan.avg_act_per_act_left = al/sc #add check that the date isn't more than 271 days old and that value isn't far from 720,000
+    if sc == 0:
+        scan.avg_act_per_act_left = 720000
+    else:
+        scan.avg_act_per_act_left = al/sc #add check that the date isn't more than 271 days old and that value isn't far from 720,000
     return(scan)
 
 def calculateMuCi(scan):
@@ -192,31 +234,35 @@ def calculateMuCi(scan):
         if scan.Gamma_Counter_Sheet[i,1] == 1:
             muci_calculator = (int(scan.Gamma_Counter_Sheet[i,2] )+ int(scan.Gamma_Counter_Sheet[i+1,2] ) - scan.bkg_value)*(2**((scan.duration_in_minutes+float(scan.Gamma_Counter_Sheet[i,4]))/scan.tracer_hl))
             muci = muci_calculator/scan.avg_act_per_act_left
-            if 'PL' in scan.Gamma_Counter_Sheet[i,5]:
+            if 'PL' in scan.Gamma_Counter_Sheet[i,scan.barcode_col_idx ]:
                 muci = muci/0.4   #add check to make sure 1ml and .4ml are standard in timing sheet columns E and G
             kBq = muci * 37
             kBq_Sheet.append(kBq)
-            if(isinstance(scan.Gamma_Counter_Sheet[i,6], pd.Series)):
-                start_time_Sheet.append(scan.Gamma_Counter_Sheet[i,6][0])
-                stop_time_Sheet.append(scan.Gamma_Counter_Sheet[i,7][0])
+            if(isinstance(scan.Gamma_Counter_Sheet[i,scan.barcode_col_idx + 1], pd.Series)):
+                start_time_Sheet.append(scan.Gamma_Counter_Sheet[i,scan.barcode_col_idx +1][0])
+                stop_time_Sheet.append(scan.Gamma_Counter_Sheet[i,scan.barcode_col_idx +2][0])
             else:
-                start_time_Sheet.append(scan.Gamma_Counter_Sheet[i,6])
-                stop_time_Sheet.append(scan.Gamma_Counter_Sheet[i,7])
+                start_time_Sheet.append(scan.Gamma_Counter_Sheet[i,scan.barcode_col_idx +1])
+                stop_time_Sheet.append(scan.Gamma_Counter_Sheet[i,scan.barcode_col_idx +2])
             muCi_calculator_FINAL_sheet.append(muci_calculator)
             muCi_FINAL_sheet.append(muci)
             CH_Sheet.append(scan.Gamma_Counter_Sheet[i:i+1,1])
-            BarcodeSheet.append(scan.Gamma_Counter_Sheet[i,5])
+            BarcodeSheet.append(scan.Gamma_Counter_Sheet[i,scan.barcode_col_idx])
             PositionSheet.append(scan.Gamma_Counter_Sheet[i,0])
             CPM_Sheet.append(scan.Gamma_Counter_Sheet[i:i+1,2])
 
     d_final = { 'POS' : PositionSheet, 'Barcode' : BarcodeSheet, 'draw start': start_time_Sheet, 'draw finish': stop_time_Sheet, 'muci-calculator' : muCi_calculator_FINAL_sheet, 'muci ': muCi_FINAL_sheet, 'kBq': kBq_Sheet}
     final_calculation = pd.DataFrame(d_final)
     final_calculation = final_calculation.iloc[[i for i, x in enumerate(final_calculation.apply(lambda row: row.astype(str).str.contains(r'[a-zA-Z]{2} \d{2}').any(), axis=1)) if x],]
+    if(isinstance(final_calculation.iloc[1,2],time)):
+        for i in range(0, final_calculation.shape[0]):
+            final_calculation.iloc[i,2] = datetime.combine(scan.date.date(),final_calculation.iloc[i,2])
+            final_calculation.iloc[i,3] = datetime.combine(scan.date.date(),final_calculation.iloc[i,3])
     scan.final_calculation = final_calculation.sort_values(by='Barcode')
     return scan
 
 def outputData(scan):
-    pd.DataFrame(scan.final_calculation).to_csv(str(str(scan.date)[:10]+'_Final Calculation.csv'), index = False)
+    pd.DataFrame(scan.final_calculation).to_csv('C:/Users/rickr/Downloads/'+str(str(scan.date)[:10]+'_Final Calculation.csv'), index = False)
 
 def last_numbers(s):
     return int(s.split(',')[-1].strip()) if isinstance(s, str) else s
@@ -264,26 +310,80 @@ def extractMetaboliteData(dataframes):
 
     return final_df
 
-def correctMetabolites(hdf,tracer_hl,tracer_name):
+def correctMetabolites(hdf,tracer_hl,tracer_name,date):
     Flow1 = 2
     Flow2 = 2
     if tracer_name == "ASEM":
         Flow2 = 1.5
+    elif tracer_name == "MK6240":
+        Flow2 = 1.7
     elif tracer_name == "RO948":
         Flow2 = 1.3
-    in_vitro_column = hdf["Name"].str.contains("in vitro")
+    if date > datetime.fromisoformat("2023-07-19"):
+        Flow2 = 1.0
+    in_vitro_column = hdf["Name"].str.contains(r'\b0 min\b|in vitro|In vitro')
     dose_column = hdf["Name"].str.contains("dose")
     hdf.replace('n.a.', np.nan, inplace=True)
     hdf["Flow 1"] = hdf["Area 1"]*Flow1*2**(hdf["RT 1"]/tracer_hl)
     hdf["Flow 2"] = hdf["Area 2"]*Flow2*2**(hdf["RT 2"]/tracer_hl)
     hdf["Flow 3"] = hdf["Area 3"]*Flow2*2**(hdf["RT 3"]/tracer_hl)
-    hdf["Flow Sum"] = hdf["Flow 1"] + hdf["Flow 2"] + hdf["Flow 3"]
-    hdf["Non-Loss Corrected"] = hdf["Flow 3"]/hdf["Flow Sum"]
+    hdf["Flow Sum"] = np.nan
+    hdf["Non-Loss Corrected"] = np.nan
+    for i in range(hdf.shape[0]):
+        if np.isnan(hdf["Flow 3"].iloc[i]):
+            hdf["Flow Sum"].iloc[i] = hdf["Flow 1"].iloc[i] + hdf["Flow 2"].iloc[i]
+            hdf["Non-Loss Corrected"].iloc[i] = hdf["Flow 2"].iloc[i]/hdf["Flow Sum"].iloc[i]
+        else:
+            hdf["Flow Sum"].iloc[i] = hdf["Flow 1"].iloc[i] + hdf["Flow 2"].iloc[i] + hdf["Flow 3"].iloc[i]
+            hdf["Non-Loss Corrected"].iloc[i] = hdf["Flow 3"].iloc[i]/hdf["Flow Sum"].iloc[i]
     #check if hdf["Non-Loss Corrected"][dose_column] is NaN
     hdf["Non-Loss Corrected"] = hdf["Non-Loss Corrected"].astype(float)
     if np.isnan(hdf["Non-Loss Corrected"][dose_column]).any():
         hdf["Non-Loss Corrected"][dose_column] = 1
+    if np.isnan(hdf["Non-Loss Corrected"][in_vitro_column]).any():
+        hdf["Non-Loss Corrected"][in_vitro_column] = 1
+    #if isinstance(in_vitro_column, pd.Series):
+    #    Correction_Factor = 1
+    #else:
     Correction_Factor = float(hdf["Non-Loss Corrected"][dose_column])/float(hdf["Non-Loss Corrected"][in_vitro_column])
+    hdf["Percent_Intact"] = hdf["Non-Loss Corrected"]*Correction_Factor
+    return hdf
+
+def correctMetabolites_Remove_First(hdf,tracer_hl,tracer_name,date):
+    Flow1 = 2
+    Flow2 = 2
+    if tracer_name == "ASEM":
+        Flow2 = 1.5
+    elif tracer_name == "MK6240":
+        Flow2 = 1.7
+    elif tracer_name == "RO948":
+        Flow2 = 1.3
+    if date > datetime.fromisoformat("2023-07-19"):
+        Flow2 = 1.0
+    in_vitro_column = hdf["Name"].str.contains(r'\b0 min\b|in vitro')
+    dose_column = hdf["Name"].str.contains("dose")
+    hdf.replace('n.a.', np.nan, inplace=True)
+    #hdf["Flow 1"] = hdf["Area 1"]*Flow1*2**(hdf["RT 1"]/tracer_hl)
+    hdf["Flow 1"] = 0
+    hdf["Flow 2"] = hdf["Area 2"]*Flow2*2**(hdf["RT 2"]/tracer_hl)
+    hdf["Flow 3"] = hdf["Area 3"]*Flow2*2**(hdf["RT 3"]/tracer_hl)
+    hdf["Flow Sum"] = np.nan
+    hdf["Non-Loss Corrected"] = np.nan
+    for i in range(hdf.shape[0]):
+        if np.isnan(hdf["Flow 3"].iloc[i]):
+            hdf["Flow Sum"].iloc[i] = hdf["Flow 1"].iloc[i] + hdf["Flow 2"].iloc[i]
+            hdf["Non-Loss Corrected"].iloc[i] = hdf["Flow 2"].iloc[i]/hdf["Flow Sum"].iloc[i]
+        else:
+            hdf["Flow Sum"].iloc[i] = hdf["Flow 1"].iloc[i] + hdf["Flow 2"].iloc[i] + hdf["Flow 3"].iloc[i]
+            hdf["Non-Loss Corrected"].iloc[i] = hdf["Flow 3"].iloc[i]/hdf["Flow Sum"].iloc[i]
+    #check if hdf["Non-Loss Corrected"][dose_column] is NaN
+    hdf["Non-Loss Corrected"] = hdf["Non-Loss Corrected"].astype(float)
+    if np.isnan(hdf["Non-Loss Corrected"][dose_column]).any():
+        hdf["Non-Loss Corrected"][dose_column] = 1
+    if isinstance(in_vitro_column, pd.Series):
+        Correction_Factor = 1
+    else:
+        Correction_Factor = float(hdf["Non-Loss Corrected"][dose_column])/float(hdf["Non-Loss Corrected"][in_vitro_column])
     hdf["Percent_Intact"] = hdf["Non-Loss Corrected"]*Correction_Factor
     return hdf
 
@@ -295,16 +395,27 @@ def time_difference(start_time, end_time):
 
 def average_time(t1_series, t2_series, start_time):
     import datetime
+
+    # Convert t1_series to timestamps if they are datetime objects
+    if isinstance(t1_series.iloc[0], datetime.datetime):
+        t1_series = t1_series.apply(lambda t: t.time())
+
+    # Convert t2_series to timestamps if they are datetime objects
+    if isinstance(t2_series.iloc[0], datetime.datetime):
+        t2_series = t2_series.apply(lambda t: t.time())
+
     # Convert both series to seconds from midnight
     t1_secs = t1_series.apply(lambda t: time_difference(start_time, t))
     t2_secs = t2_series.apply(lambda t: time_difference(start_time, t))
-    
+
     # Calculate the average time in seconds from midnight
     avg_secs = (t1_secs + t2_secs) / 2
-    
+
     # Convert the average time back to a datetime.time object
-    avg_times = avg_secs.apply(lambda s: datetime.time(hour=int(s // 3600), minute=int((s // 60) % 60), second=int(s % 60)))
-    
+    avg_times = avg_secs.apply(
+        lambda s: datetime.time(hour=int(s // 3600), minute=int((s // 60) % 60), second=int(s % 60))
+    )
+
     return avg_times
 
 def correctPlasma(hdf,pc,start_time):
